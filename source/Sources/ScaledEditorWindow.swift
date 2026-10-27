@@ -11,6 +11,9 @@ struct ScaledEditorWindow: View {
                 .scaleEffect(scale, anchor: .topLeading)
                 .frame(width: bounds.size.width, height: bounds.size.height, alignment: .topLeading)
         }
+        // The hidden title bar still reserves a top safe-area inset. Let the
+        // editor use that space so its toolbar sits closer to the window edge.
+        .ignoresSafeArea(.container, edges: .top)
         .frame(minWidth: 760 * scale, minHeight: 600 * scale)
     }
 }

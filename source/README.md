@@ -19,6 +19,8 @@ build 18 删除这两个动态转发重写。通知中心只会登记本对象�
 
 ## 构建
 
+主窗口忽略隐藏标题栏造成的顶部安全区，让文档标题和操作按钮上移；侧栏标题增加顶部留白，纯净模式的标签栏右移避开 macOS 窗口控制按钮。
+
 ```sh
 xcodebuild -project ASH.xcodeproj -scheme ASH -configuration Release \
   -destination 'platform=macOS,arch=arm64' -derivedDataPath build/Release \

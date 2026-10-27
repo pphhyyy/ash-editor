@@ -388,7 +388,7 @@ struct EditorView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("工作区").font(.system(size: 11, weight: .semibold)).foregroundStyle(theme.ink)
-                .padding(.horizontal, 13).padding(.top, 12)
+                .padding(.horizontal, 13).padding(.top, 52)
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     recentSidebar
@@ -885,6 +885,7 @@ struct EditorView: View {
                               moveRight: { moveTab(TabReference(id: $0, pane: pane), layout: .sideBySide) },
                               moveBelow: { moveTab(TabReference(id: $0, pane: pane), layout: .stacked) },
                               reorder: { moveDroppedTab($0, to: pane, before: $1) })
+            .padding(.leading, focusMode ? CGFloat(76 / uiScale) : 0)
             .overlay(alignment: .top) {
                 if splitMode != .off && activePane == pane { Rectangle().fill(purple.opacity(0.4)).frame(height: 1) }
             }
