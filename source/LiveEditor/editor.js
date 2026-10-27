@@ -8,7 +8,7 @@ import { table } from '@milkdown/crepe/feature/table';
 import { listItem } from '@milkdown/crepe/feature/list-item';
 import { cursor } from '@milkdown/crepe/feature/cursor';
 import { historyProviderConfig } from '@milkdown/kit/plugin/history';
-import { editorViewCtx, remarkCtx, remarkPluginsCtx, InitReady } from '@milkdown/kit/core';
+import { editorViewCtx, parserCtx, remarkCtx, remarkPluginsCtx, InitReady } from '@milkdown/kit/core';
 import { imageSchema } from '@milkdown/kit/preset/commonmark';
 import { $nodeSchema, $view, $prose, replaceAll } from '@milkdown/kit/utils';
 import { ViewPlugin as CMViewPlugin, Decoration as CMDecoration } from '@codemirror/view';
@@ -18,7 +18,7 @@ import { Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state';
 import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/classic.css';
 import './style.css';
-import { transformMathDelimiters } from './math-delimiters.js';
+import { normalizeMathForPreview, transformMathDelimiters } from './math-delimiters.js';
 
 // Markdown remains the source of truth outside this editable ProseMirror document.
 // No HTML from a document is executed, and no CDN or remote service is used.
@@ -379,6 +379,23 @@ function flush() {
   return markdown;
 }
 
+function replaceDocumentWithoutHistory(markdown) {
+  editor.editor.action(ctx => {
+    const view = ctx.get(editorViewCtx);
+    const parsed = ctx.get(parserCtx)(markdown);
+    if (!parsed) return;
+    const previousSelection = view.state.selection;
+    let transaction = view.state.tr.replaceWith(0, view.state.doc.content.size, parsed.content);
+    if (previousSelection instanceof TextSelection) {
+      const limit = transaction.doc.content.size;
+      const anchor = Math.min(previousSelection.anchor, limit);
+      const head = Math.min(previousSelection.head, limit);
+      transaction = transaction.setSelection(TextSelection.create(transaction.doc, anchor, head));
+    }
+    view.dispatch(transaction.setMeta('addToHistory', false));
+  });
+}
+
 const syncPlugin = $prose(() => new Plugin({
   view: () => ({update(view, previous) {
     if (ready && !view.state.doc.eq(previous.doc) && !updating) {
@@ -480,7 +497,7 @@ async function start(config) {
   epoch = config.epoch;
   lastNativeSource = transformMathDelimiters(config.markdown, mathDelimiter);
   lastSent = lastNativeSource;
-  const parseSource = transformMathDelimiters(lastNativeSource, 'dollar');
+  const parseSource = normalizeMathForPreview(lastNativeSource);
   window.ashParseSource = parseSource;
   editor = new CrepeBuilder({root: '#editor', defaultValue: parseSource})
     .addFeature(codeMirror, {extensions:[codeFadePlugin,codeColors], searchPlaceholder:'搜索语言', copyText:'复制', noResultText:'无匹配语言', previewOnlyByDefault:true})
@@ -548,13 +565,16 @@ window.ashEditor = {
       const oldMathDelimiter = mathDelimiter;
       applyAppearance(config);
       if (oldMathDelimiter !== mathDelimiter && config.epoch === epoch) {
-        if (edited) flush();
-        else {
-          lastNativeSource = transformMathDelimiters(lastNativeSource, mathDelimiter);
-          if (lastNativeSource !== lastSent) {
-            lastSent = lastNativeSource;
-            post({type:'change', markdown:lastNativeSource, epoch});
-          }
+        const currentSource = edited ? editor.getMarkdown() : lastNativeSource;
+        lastNativeSource = transformMathDelimiters(currentSource, mathDelimiter);
+        const parseSource = normalizeMathForPreview(lastNativeSource);
+        updating = true;
+        replaceDocumentWithoutHistory(parseSource);
+        updating = false;
+        edited = false;
+        if (lastNativeSource !== lastSent) {
+          lastSent = lastNativeSource;
+          post({type:'change', markdown:lastNativeSource, epoch});
         }
       }
       if (config.epoch !== epoch) {
@@ -562,7 +582,7 @@ window.ashEditor = {
         epoch = config.epoch;
         lastNativeSource = transformMathDelimiters(config.markdown, mathDelimiter);
         lastSent = lastNativeSource; edited = false;
-        const parseSource = transformMathDelimiters(lastNativeSource, 'dollar');
+        const parseSource = normalizeMathForPreview(lastNativeSource);
         window.ashParseSource = parseSource;
         editor.editor.action(replaceAll(parseSource, true));
         updating = false;

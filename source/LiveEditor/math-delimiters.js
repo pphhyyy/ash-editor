@@ -35,9 +35,11 @@ function transformInline(line, target) {
 
 function transformSingleLineBlock(line, fromOpen, fromClose, openTo, closeTo) {
   const leading = line.match(/^\s*/)?.[0] ?? '';
-  const body = line.slice(leading.length);
+  const rest = line.slice(leading.length);
+  const trailing = rest.match(/\s*$/)?.[0] ?? '';
+  const body = trailing ? rest.slice(0, -trailing.length) : rest;
   if (body.startsWith(fromOpen) && body.endsWith(fromClose) && body.length > fromOpen.length + fromClose.length) {
-    return leading + openTo + body.slice(fromOpen.length, -fromClose.length) + closeTo;
+    return leading + openTo + body.slice(fromOpen.length, -fromClose.length) + closeTo + trailing;
   }
   return null;
 }
@@ -84,5 +86,32 @@ export function transformMathDelimiters(markdown, target = 'dollar') {
     const latexBlock = transformSingleLineBlock(line, '\\[', '\\]', target === 'dollar' ? '$$' : '\\[', target === 'dollar' ? '$$' : '\\]');
     if (latexBlock !== null) return latexBlock + ending;
     return transformInline(line, target) + ending;
+  }).join('');
+}
+
+// remark-math parses display math as a fenced block: the opening and closing
+// $$ markers must be on their own lines. Normalize single-line \[...\] and
+// $$...$$ blocks before passing Markdown to Milkdown, while leaving code fences
+// and their contents untouched.
+export function normalizeMathForPreview(markdown) {
+  const dollarMarkdown = transformMathDelimiters(markdown, 'dollar');
+  const lines = dollarMarkdown.split(/(?<=\n)/);
+  let fence = null;
+  return lines.map(lineWithEnding => {
+    const ending = lineWithEnding.endsWith('\r\n') ? '\r\n' : lineWithEnding.endsWith('\n') ? '\n' : '';
+    const line = ending ? lineWithEnding.slice(0, -ending.length) : lineWithEnding;
+    const fenceMatch = line.match(/^\s{0,3}(`{3,}|~{3,})/);
+    if (fenceMatch) {
+      const marker = fenceMatch[1];
+      if (!fence) fence = {char: marker[0], length: marker.length};
+      else if (marker[0] === fence.char && marker.length >= fence.length) fence = null;
+      return lineWithEnding;
+    }
+    if (fence) return lineWithEnding;
+
+    const block = line.match(/^(\s{0,3})\$\$(.+?)\$\$\s*$/);
+    if (!block || !block[2].trim()) return lineWithEnding;
+    const separator = ending || '\n';
+    return `${block[1]}$$${separator}${block[2].trim()}${separator}${block[1]}$$${ending}`;
   }).join('');
 }
