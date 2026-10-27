@@ -11,6 +11,7 @@ import { historyProviderConfig } from '@milkdown/kit/plugin/history';
 import { editorViewCtx, parserCtx, remarkCtx, remarkPluginsCtx, InitReady } from '@milkdown/kit/core';
 import { imageSchema } from '@milkdown/kit/preset/commonmark';
 import { $nodeSchema, $view, $prose, replaceAll } from '@milkdown/kit/utils';
+import { Slice } from '@milkdown/kit/prose/model';
 import { ViewPlugin as CMViewPlugin, Decoration as CMDecoration } from '@codemirror/view';
 import { StateEffect as CMStateEffect } from '@codemirror/state';
 import { Decoration, DecorationSet } from '@milkdown/kit/prose/view';
@@ -58,6 +59,51 @@ function imageRenderSource(source) {
   return `ash-image://render?src=${encodeURIComponent(source)}`;
 }
 
+function containsLatexMath(markdown) {
+  const lines = markdown.split(/\r?\n/);
+  let fence = null;
+  const outsideCode = [];
+  for (const line of lines) {
+    const match = line.match(/^\s{0,3}(`{3,}|~{3,})/);
+    if (match) {
+      const marker = match[1];
+      if (!fence) fence = {char:marker[0], length:marker.length};
+      else if (marker[0] === fence.char && marker.length >= fence.length) fence = null;
+      continue;
+    }
+    if (!fence) outsideCode.push(line);
+  }
+  const source = outsideCode.join('\n');
+  const isEscaped = (text, index) => {
+    let slashes = 0;
+    while (index > 0 && text[--index] === '\\') slashes++;
+    return slashes % 2 === 1;
+  };
+  for (const [open, close] of [['\\[','\\]'], ['\\(','\\)']]) {
+    let start = source.indexOf(open);
+    while (start >= 0) {
+      if (!isEscaped(source, start)) {
+        let end = source.indexOf(close, start + open.length);
+        while (end >= 0 && isEscaped(source, end)) end = source.indexOf(close, end + close.length);
+        if (end >= 0) return true;
+      }
+      start = source.indexOf(open, start + open.length);
+    }
+  }
+  return false;
+}
+
+function pasteMathMarkdown(markdown) {
+  const source = normalizeMathForPreview(transformMathDelimiters(markdown, mathDelimiter));
+  editor.editor.action(ctx => {
+    const view = ctx.get(editorViewCtx);
+    const parsed = ctx.get(parserCtx)(source);
+    if (!parsed) return;
+    view.dispatch(view.state.tr.replaceSelection(new Slice(parsed.content, 0, 0)).scrollIntoView());
+    view.focus();
+  });
+}
+
 function installImageHandling(editable) {
   const rewriteImage = image => {
     const source = image.getAttribute('src') || '';
@@ -87,11 +133,22 @@ function installImageHandling(editable) {
     };
     const items = [...(clipboard?.items || [])];
     const files = [...(clipboard?.files || [])];
-    if (!items.some(item => isImageType(item.type)) && !files.some(file => isImageType(file.type)) &&
-        ![...(clipboard?.types || [])].some(isImageType)) return;
+    const containsImage = items.some(item => isImageType(item.type)) || files.some(file => isImageType(file.type)) ||
+      [...(clipboard?.types || [])].some(isImageType);
+    if (containsImage) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      post({type:'pasteImage'});
+      return;
+    }
+    const text = clipboard?.getData('text/plain') || '';
+    if (!containsLatexMath(text)) return;
+    // Rich clipboard HTML often contains the literal Markdown delimiters as
+    // text nodes. Parse the plain-text Markdown after normalizing it so pasted
+    // TeX uses the same preview pipeline as a document opened from disk.
     event.preventDefault();
     event.stopImmediatePropagation();
-    post({type:'pasteImage'});
+    pasteMathMarkdown(text);
   }, true);
 }
 

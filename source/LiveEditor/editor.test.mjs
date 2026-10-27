@@ -61,6 +61,21 @@ try {
   assert.match((await page.evaluate(()=>window.ashEditor.inspect())).markdown,/隐藏输入/);
   console.log('PASS: privacy hides glyphs while preserving editable content');
 
+  const mathSource = '前置说明。\n\n\\[ \\boxed{s_{t+1}=f(s_t,a_t)} \\]\n\n后续说明与行内公式 \\(p(s_t\\mid h_t)\\)。';
+  await page.evaluate(config=>window.ashEditor.configure({...config,epoch:3,markdown:'',mathDelimiter:'latex',concealed:false}),config);
+  await page.locator('.ProseMirror').evaluate((editable,text)=>{
+    const clipboardData = new DataTransfer();
+    clipboardData.setData('text/plain',text);
+    clipboardData.setData('text/html',`<p>${text}</p>`);
+    editable.dispatchEvent(new ClipboardEvent('paste',{clipboardData,bubbles:true,cancelable:true}));
+  },mathSource);
+  await expect(page.locator('.ProseMirror .katex-display')).toHaveCount(1);
+  await expect(page.locator('.ProseMirror .katex')).toHaveCount(2);
+  const pastedMarkdown = await page.evaluate(()=>window.ashEditor.inspect().markdown);
+  assert.match(pastedMarkdown,/\\\[\s*\\boxed\{s_\{t\+1\}=f\(s_t,a_t\)\}\s*\\\]/);
+  assert.match(pastedMarkdown,/\\\(p\(s_t\\mid h_t\)\\\)/);
+  console.log('PASS: pasted plain text with rich HTML and \\[...\\]/\\(...\\) renders immediately and preserves configured syntax');
+
   const messages = await page.evaluate(()=>window.ashMessages);
   assert.deepEqual(errors,[]);
   assert.deepEqual(messages.filter(message=>message.type==='error'),[]);
