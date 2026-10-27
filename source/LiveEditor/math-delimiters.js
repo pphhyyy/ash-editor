@@ -89,29 +89,59 @@ export function transformMathDelimiters(markdown, target = 'dollar') {
   }).join('');
 }
 
-// remark-math parses display math as a fenced block: the opening and closing
-// $$ markers must be on their own lines. Normalize single-line \[...\] and
-// $$...$$ blocks before passing Markdown to Milkdown, while leaving code fences
-// and their contents untouched.
+// remark-math parses display math as a fenced block. Keep the delimiters on
+// their own lines and isolate each display block from surrounding paragraphs;
+// Markdown documents often use a single newline around \[...\] formulas, which
+// otherwise leaves the delimiters inside a paragraph where remark-math treats
+// them as ordinary text. Leave code fences and their contents untouched.
 export function normalizeMathForPreview(markdown) {
   const dollarMarkdown = transformMathDelimiters(markdown, 'dollar');
-  const lines = dollarMarkdown.split(/(?<=\n)/);
+  const newline = dollarMarkdown.includes('\r\n') ? '\r\n' : '\n';
+  const lines = dollarMarkdown.replace(/\r\n/g, '\n').split('\n');
+  const hasFinalNewline = dollarMarkdown.endsWith('\n');
+  if (hasFinalNewline) lines.pop();
+  const normalized = [];
   let fence = null;
-  return lines.map(lineWithEnding => {
-    const ending = lineWithEnding.endsWith('\r\n') ? '\r\n' : lineWithEnding.endsWith('\n') ? '\n' : '';
-    const line = ending ? lineWithEnding.slice(0, -ending.length) : lineWithEnding;
+  const pushDisplayBlock = (block, nextLine) => {
+    if (normalized.length && normalized[normalized.length - 1].trim()) normalized.push('');
+    normalized.push(...block);
+    if (nextLine?.trim()) normalized.push('');
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const fenceMatch = line.match(/^\s{0,3}(`{3,}|~{3,})/);
     if (fenceMatch) {
       const marker = fenceMatch[1];
       if (!fence) fence = {char: marker[0], length: marker.length};
       else if (marker[0] === fence.char && marker.length >= fence.length) fence = null;
-      return lineWithEnding;
+      normalized.push(line);
+      continue;
     }
-    if (fence) return lineWithEnding;
+    if (fence) {
+      normalized.push(line);
+      continue;
+    }
 
-    const block = line.match(/^(\s{0,3})\$\$(.+?)\$\$\s*$/);
-    if (!block || !block[2].trim()) return lineWithEnding;
-    const separator = ending || '\n';
-    return `${block[1]}$$${separator}${block[2].trim()}${separator}${block[1]}$$${ending}`;
-  }).join('');
+    const singleLineBlock = line.match(/^(\s{0,3})\$\$(.+?)\$\$\s*$/);
+    if (singleLineBlock && singleLineBlock[2].trim()) {
+      const prefix = singleLineBlock[1];
+      pushDisplayBlock([`${prefix}$$`, singleLineBlock[2].trim(), `${prefix}$$`], lines[i + 1]);
+      continue;
+    }
+
+    if (line.trim() === '$$') {
+      let close = i + 1;
+      while (close < lines.length && lines[close].trim() !== '$$') close++;
+      if (close < lines.length) {
+        pushDisplayBlock(lines.slice(i, close + 1), lines[close + 1]);
+        i = close;
+        continue;
+      }
+    }
+
+    normalized.push(line);
+  }
+
+  return normalized.join(newline) + (hasFinalNewline ? newline : '');
 }

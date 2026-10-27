@@ -5,7 +5,7 @@
 ## 当前项目基线
 
 - GitHub 仓库：<https://github.com/pphhyyy/ash-editor>
-- `main` 保存最新源码；当前更新目标为 ASH 2.0.1，已发布版本使用 `v1.0`、`v2.0` 等标签和独立 Release。
+- `main` 保存最新源码；当前更新目标为 ASH 2.0.2，已发布版本使用 `v1.0`、`v2.0` 等标签和独立 Release。
 - `source/` 是当前主线的应用源码。版本源信息在 `source/project.yml`，应用的 Info.plist 设置在 `source/Info.plist`。
 - 应用产品名和显示名固定为 **ASH**。版本号放在应用版本信息中，不拼进 `.app` 包名；例如 2.0 的产物仍叫 `ASH.app`，可从“关于 ASH”查看 2.0。
 - 当前工程目标为 macOS 14 或更新版本，Release 架构配置为 Apple Silicon `arm64`。
