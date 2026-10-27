@@ -19,7 +19,7 @@ build 18 删除这两个动态转发重写。通知中心只会登记本对象�
 
 ## 构建
 
-主窗口忽略隐藏标题栏造成的顶部安全区，让文档标题和操作按钮上移；侧栏标题增加顶部留白，纯净模式的标签栏右移避开 macOS 窗口控制按钮。
+主窗口忽略隐藏标题栏造成的顶部安全区，让文档标题和操作按钮上移；侧栏标题增加顶部留白。纯净模式保留独立的 5px 窗口拖动区，标签栏右移避开窗口控制按钮。拖动标签时，紫色竖线标出实际插入缝，包括相邻标签之间和标签栏末尾。聊天框拖动条缩窄并使用当前文字色的轻微色差，适配紫雾、纸感、夜色三种主题。
 
 ```sh
 xcodebuild -project ASH.xcodeproj -scheme ASH -configuration Release \
@@ -27,7 +27,7 @@ xcodebuild -project ASH.xcodeproj -scheme ASH -configuration Release \
   CODE_SIGNING_ALLOWED=NO build
 ```
 
-本次未运行新的交互测试。Resources/LiveEditor/editor.html 已打包，
+本次已在独立预览中创建多个标签并验证拖放会调整标签顺序。Resources/LiveEditor/editor.html 已打包，
 修改前端时先在 LiveEditor/ 安装锁文件依赖再运行 node LiveEditor/build.mjs。
 Vendor/ 包含完整 Swift 本地依赖。源码 ZIP 排除 build 和 node_modules。
 Recovery/ 为 build 16 恢复时的历史报告，不用于证明本版与 build 16 相同。

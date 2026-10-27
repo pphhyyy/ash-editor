@@ -182,7 +182,13 @@ struct EditorView: View {
         HStack(spacing: 0) {
             if !focusMode { sidebar }
             VStack(spacing: 0) {
-                if !focusMode { titleBar }
+                if focusMode {
+                    // Keep tabs out of the native title-bar drag zone, so
+                    // dragging a tab does not move the whole window.
+                    EditorWindowDragArea().frame(height: 5)
+                } else {
+                    titleBar
+                }
                 workspace
                 if !focusMode { statusBar }
             }
@@ -190,6 +196,10 @@ struct EditorView: View {
         .background(canvasColor.ignoresSafeArea())
         .background(EditorWindowCloseHook(interceptor: closeInterceptor) { window in
             editorWindow = window
+            // In focus mode AppKit's transparent title-bar drag region overlaps
+            // the tab row. Disable that implicit drag path; the 5pt strip below
+            // moves the window explicitly, while tab events stay with the tabs.
+            window.isMovable = !focusMode
             closeInterceptor.attach(to: window, hasUnsavedChanges: { hasUnsavedChanges },
                                     prompt: { showingUnsavedPrompt = true },
                                     didClose: { cleanupEditor() })
@@ -1627,6 +1637,30 @@ private struct EditorWindowCloseHook: NSViewRepresentable {
 
     func updateNSView(_ view: NSView, context: Context) {
         DispatchQueue.main.async { if let window = view.window { onAttach(window) } }
+    }
+}
+
+private struct EditorWindowDragArea: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { DragView() }
+    func updateNSView(_ view: NSView, context: Context) {}
+
+    private final class DragView: NSView {
+        private var startMouse: NSPoint?
+        private var startWindow: NSPoint?
+
+        override var mouseDownCanMoveWindow: Bool { false }
+        override func mouseDown(with event: NSEvent) {
+            guard let window else { return }
+            startMouse = window.convertPoint(toScreen: event.locationInWindow)
+            startWindow = window.frame.origin
+        }
+        override func mouseDragged(with event: NSEvent) {
+            guard let window, let startMouse, let startWindow else { return }
+            let point = window.convertPoint(toScreen: event.locationInWindow)
+            window.setFrameOrigin(NSPoint(x: startWindow.x + point.x - startMouse.x,
+                                          y: startWindow.y + point.y - startMouse.y))
+        }
+        override func mouseUp(with event: NSEvent) { startMouse = nil; startWindow = nil }
     }
 }
 

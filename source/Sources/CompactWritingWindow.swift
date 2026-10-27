@@ -194,16 +194,16 @@ private struct CompactWritingView: View {
                 CompactDragArea().frame(maxWidth: .infinity)
                 Button { model.togglePinned() } label: {
                     Image(systemName: model.isPinned ? "pin.fill" : "pin")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(model.isPinned ? Color.white : Color.white.opacity(0.65))
-                        .frame(width: 28, height: 22)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(model.ink.opacity(model.isPinned ? 0.9 : 0.62))
+                        .frame(width: 24, height: 16)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).focusable(false)
                 .accessibilityLabel(model.isPinned ? "取消置顶聊天框" : "置顶聊天框")
                 .help(model.isPinned ? "取消跨桌面置顶" : "固定在所有桌面及全屏应用上方")
-            }.frame(height: 22).padding(.trailing, 3)
-                .background(Color(red: 0.47, green: 0.32, blue: 0.80))
+            }.frame(height: 16).padding(.trailing, 3)
+                .background(model.ink.opacity(0.045))
             AshTextEditor(text: $model.text, size: model.fontSize, color: model.ink,
                           concealed: model.concealed, focusMode: true, alignment: model.alignment,
                           fading: model.fading, fadeInitialOpacity: model.fadeInitialOpacity, fadeDuration: model.fadeDuration,
