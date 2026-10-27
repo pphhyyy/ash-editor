@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0DBAB9C66B0BAD70325A3E96 /* FocusShortcut.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3803CE8F3179784D760DF24A /* FocusShortcut.swift */; };
+		3C93BF17659C54B8AF4E6EA4 /* ASHHanddrawn.icns in Resources */ = {isa = PBXBuildFile; fileRef = 17D85A5DCA8E0ED6E2868C68 /* ASHHanddrawn.icns */; };
 		412884AF13C6A72D71E41C9B /* ApplicationQuitGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E72820857956D851181D55C /* ApplicationQuitGuard.swift */; };
 		52C2D4DA285604F541E86394 /* RecentDocumentIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE78A2B4BE224BCD8DFE3E33 /* RecentDocumentIndex.swift */; };
 		57E5AC036211A09387304EB8 /* FolderWorkspace.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAF9A4D531AC34A62511A07E /* FolderWorkspace.swift */; };
@@ -16,6 +17,7 @@
 		67A1443ED02F879F09AF208D /* LiveMarkdownEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E25F13B31EB307DECD30AE49 /* LiveMarkdownEditor.swift */; };
 		67A21C98A9B8AA316D429E62 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 9D35748829F3F8A0E86DFE2C /* MarkdownUI */; };
 		6976042B310FDD3ED223AE07 /* editor.html in Resources */ = {isa = PBXBuildFile; fileRef = F80D86AC802AD268342F02A8 /* editor.html */; };
+		6DB5365D49E150FC943B1CD9 /* ASHImageAssets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149E72A18CBDA8E192B3D4A3 /* ASHImageAssets.swift */; };
 		728A952FCFEF6E2A2FE828A8 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1AE1A61D1CC5644FF6A724B /* EditorView.swift */; };
 		7ED610DFAA21AF552E959342 /* ScaledEditorWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76A375C6145C9F4940B0C115 /* ScaledEditorWindow.swift */; };
 		A59B3F7A9C69046F71D29F94 /* ThirdPartyNotices.txt in Resources */ = {isa = PBXBuildFile; fileRef = 257EE7AB821FA1864A0583F4 /* ThirdPartyNotices.txt */; };
@@ -23,11 +25,13 @@
 		BA15FA9AF02D5711A0FC75CC /* AshTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10FC36BE8ACFB75BE63B0D3 /* AshTextEditor.swift */; };
 		BA6EBAE833A2EB0CE4BCEC27 /* AshFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 686CF668D7DF6464BB97BE5F /* AshFile.swift */; };
 		CBD0B33069A22E88CBA1E80C /* ASHApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 879C615ED08AA047983D12B1 /* ASHApp.swift */; };
-		DABC30ECA5371B161E45F0B7 /* ASHHanddrawn.icns in Resources */ = {isa = PBXBuildFile; fileRef = E40F8C750B478D3D2AAFA4DC /* ASHHanddrawn.icns */; };
+		DABC30ECA5371B161E45F0B7 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = E40F8C750B478D3D2AAFA4DC /* AppIcon.icns */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		06D97F2890D571DEF8C4B081 /* CompactWritingWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactWritingWindow.swift; sourceTree = "<group>"; };
+		149E72A18CBDA8E192B3D4A3 /* ASHImageAssets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ASHImageAssets.swift; sourceTree = "<group>"; };
+		17D85A5DCA8E0ED6E2868C68 /* ASHHanddrawn.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = ASHHanddrawn.icns; sourceTree = "<group>"; };
 		257EE7AB821FA1864A0583F4 /* ThirdPartyNotices.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = ThirdPartyNotices.txt; sourceTree = "<group>"; };
 		2E72820857956D851181D55C /* ApplicationQuitGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationQuitGuard.swift; sourceTree = "<group>"; };
 		3803CE8F3179784D760DF24A /* FocusShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusShortcut.swift; sourceTree = "<group>"; };
@@ -41,7 +45,7 @@
 		BA93372916C9FBD6A698AC0F /* ASH.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ASH.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DAF9A4D531AC34A62511A07E /* FolderWorkspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderWorkspace.swift; sourceTree = "<group>"; };
 		E25F13B31EB307DECD30AE49 /* LiveMarkdownEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveMarkdownEditor.swift; sourceTree = "<group>"; };
-		E40F8C750B478D3D2AAFA4DC /* ASHHanddrawn.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = ASHHanddrawn.icns; sourceTree = "<group>"; };
+		E40F8C750B478D3D2AAFA4DC /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		F10FC36BE8ACFB75BE63B0D3 /* AshTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AshTextEditor.swift; sourceTree = "<group>"; };
 		F80D86AC802AD268342F02A8 /* editor.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = editor.html; sourceTree = "<group>"; };
 		FE78A2B4BE224BCD8DFE3E33 /* RecentDocumentIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentDocumentIndex.swift; sourceTree = "<group>"; };
@@ -72,7 +76,8 @@
 		4C819D3A373FA69E7C884E88 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				E40F8C750B478D3D2AAFA4DC /* ASHHanddrawn.icns */,
+				E40F8C750B478D3D2AAFA4DC /* AppIcon.icns */,
+				17D85A5DCA8E0ED6E2868C68 /* ASHHanddrawn.icns */,
 				257EE7AB821FA1864A0583F4 /* ThirdPartyNotices.txt */,
 				DB8A7445E236A02D2CCD0B31 /* LiveEditor */,
 			);
@@ -85,6 +90,7 @@
 				2E72820857956D851181D55C /* ApplicationQuitGuard.swift */,
 				879C615ED08AA047983D12B1 /* ASHApp.swift */,
 				686CF668D7DF6464BB97BE5F /* AshFile.swift */,
+				149E72A18CBDA8E192B3D4A3 /* ASHImageAssets.swift */,
 				F10FC36BE8ACFB75BE63B0D3 /* AshTextEditor.swift */,
 				06D97F2890D571DEF8C4B081 /* CompactWritingWindow.swift */,
 				586422F278B15E65046229A5 /* DocumentStorage.swift */,
@@ -187,7 +193,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				DABC30ECA5371B161E45F0B7 /* ASHHanddrawn.icns in Resources */,
+				3C93BF17659C54B8AF4E6EA4 /* ASHHanddrawn.icns in Resources */,
+				DABC30ECA5371B161E45F0B7 /* AppIcon.icns in Resources */,
 				A59B3F7A9C69046F71D29F94 /* ThirdPartyNotices.txt in Resources */,
 				6976042B310FDD3ED223AE07 /* editor.html in Resources */,
 			);
@@ -201,6 +208,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CBD0B33069A22E88CBA1E80C /* ASHApp.swift in Sources */,
+				6DB5365D49E150FC943B1CD9 /* ASHImageAssets.swift in Sources */,
 				412884AF13C6A72D71E41C9B /* ApplicationQuitGuard.swift in Sources */,
 				BA6EBAE833A2EB0CE4BCEC27 /* AshFile.swift in Sources */,
 				BA15FA9AF02D5711A0FC75CC /* AshTextEditor.swift in Sources */,
@@ -222,11 +230,11 @@
 		7111EA5AF424C7364970F12B /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = ASHHanddrawn;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = ASH.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -238,7 +246,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.ash.editor;
 				PRODUCT_NAME = ASH;
 				SDKROOT = macosx;
@@ -248,11 +256,11 @@
 		78D258C345FFCADBD84D517B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = ASHHanddrawn;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = ASH.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -264,7 +272,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.ash.editor;
 				PRODUCT_NAME = ASH;
 				SDKROOT = macosx;

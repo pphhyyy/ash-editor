@@ -64,9 +64,41 @@ final class RecentDocumentIndex: ObservableObject {
         return url
     }
 
+    /// Re-resolve the document's own grant so an open file remains accessible
+    /// after the workspace folder grant is released by its close button.
+    func accessURL(for url: URL) -> URL {
+        for stored in bookmarks {
+            let cached = resolvedURLs[stored.path]
+            guard stored.path == url.path || cached.map({ samePath($0, url) }) == true else { continue }
+            guard let resolved = resolve(stored), samePath(resolved, url) else { continue }
+            resolvedURLs[stored.path] = resolved
+            return resolved
+        }
+        // A bookmark can resolve to a new path after the file is moved. Look up
+        // that resolved location too, so reads keep using its security-scoped URL.
+        for stored in bookmarks {
+            guard let resolved = resolve(stored), samePath(resolved, url) else { continue }
+            resolvedURLs[stored.path] = resolved
+            return resolved
+        }
+        return url
+    }
+
     func hasBookmark(for url: URL) -> Bool {
-        guard let stored = bookmarks.first(where: { $0.path == url.path || resolvedURLs[$0.path] == url }) else { return false }
-        return resolve(stored)?.standardizedFileURL == url.standardizedFileURL
+        for stored in bookmarks {
+            let cached = resolvedURLs[stored.path]
+            guard stored.path == url.path || cached.map({ samePath($0, url) }) == true else { continue }
+            guard let resolved = resolve(stored) else { continue }
+            resolvedURLs[stored.path] = resolved
+            if samePath(resolved, url) { return true }
+        }
+        // Also handle bookmarks whose target has moved since the index was saved.
+        for stored in bookmarks {
+            guard let resolved = resolve(stored), samePath(resolved, url) else { continue }
+            resolvedURLs[stored.path] = resolved
+            return true
+        }
+        return false
     }
 
     func remember(_ url: URL) throws {
@@ -109,8 +141,25 @@ final class RecentDocumentIndex: ObservableObject {
 
     private func resolve(_ stored: RecentAccessBookmark) -> URL? {
         var stale = false
-        return try? URL(resolvingBookmarkData: stored.bookmark, options: [.withSecurityScope, .withoutUI],
-                        relativeTo: nil, bookmarkDataIsStale: &stale)
+        guard let url = try? URL(resolvingBookmarkData: stored.bookmark,
+                                 options: [.withSecurityScope, .withoutUI],
+                                 relativeTo: nil, bookmarkDataIsStale: &stale) else { return nil }
+        if stale,
+           let index = bookmarks.firstIndex(where: { $0.path == stored.path }) {
+            let started = url.startAccessingSecurityScopedResource()
+            defer { if started { url.stopAccessingSecurityScopedResource() } }
+            if let refreshed = try? url.bookmarkData(options: .withSecurityScope,
+                                                     includingResourceValuesForKeys: nil, relativeTo: nil) {
+                bookmarks[index].bookmark = refreshed
+                saveBookmarks()
+            }
+        }
+        return url
+    }
+
+    private func samePath(_ lhs: URL, _ rhs: URL) -> Bool {
+        lhs.standardizedFileURL.resolvingSymlinksInPath().path ==
+            rhs.standardizedFileURL.resolvingSymlinksInPath().path
     }
 
     private func load() throws {

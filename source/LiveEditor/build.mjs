@@ -1,10 +1,20 @@
 import { build } from 'esbuild';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const crepeDirectory = path.dirname(require.resolve('@milkdown/crepe/feature/code-mirror'));
 const codeMirrorAliases = Object.fromEntries(['@codemirror/view','@codemirror/state'].map(name => [name,require.resolve(name,{paths:[crepeDirectory]})]));
+const kitDirectory = path.dirname(fileURLToPath(import.meta.resolve('@milkdown/kit/preset/gfm')));
+const presetDirectory = path.dirname(path.resolve(kitDirectory,'../../../preset-gfm/lib/index.js'));
+const remarkDirectory = path.dirname(require.resolve('remark-gfm',{paths:[presetDirectory]}));
+const delimiterDirectory = path.dirname(require.resolve('micromark-extension-gfm-strikethrough',{paths:[remarkDirectory]}));
+for (const name of ['micromark-util-chunked','micromark-util-classify-character','micromark-util-resolve-all']) {
+  codeMirrorAliases[name] = require.resolve(name,{paths:[delimiterDirectory]});
+}
+codeMirrorAliases['@codemirror/language'] = require.resolve('@codemirror/language',{paths:[crepeDirectory]});
+codeMirrorAliases['@lezer/highlight'] = require.resolve('@lezer/highlight',{paths:[path.dirname(codeMirrorAliases['@codemirror/language'])]});
 const output = path.resolve(import.meta.dirname, '../Resources/LiveEditor');
 await fs.mkdir(output,{recursive:true});
 // Milkdown 7.22.3 schedules table selection using an old EditorState. Fast
@@ -22,10 +32,10 @@ const tableSelectionFix = {
     });
   },
 };
-const result = await build({alias:codeMirrorAliases,entryPoints:[path.join(import.meta.dirname,'editor.js')], plugins:[tableSelectionFix], bundle:true, metafile:true, minify:process.env.ASH_EDITOR_DEBUG !== "1", format:'iife', target:'safari17', write:false, outdir:'bundle', legalComments:'eof', loader:{'.woff2':'empty','.woff':'empty','.ttf':'empty'},});
+const result = await build({alias:codeMirrorAliases,entryPoints:[path.join(import.meta.dirname,'editor.js')], plugins:[tableSelectionFix], bundle:true, metafile:true, minify:process.env.ASH_EDITOR_DEBUG !== "1", format:'iife', target:'safari17', write:false, outdir:'bundle', legalComments:'eof', loader:{'.woff2':'dataurl','.woff':'dataurl','.ttf':'dataurl'},});
 const js = result.outputFiles.find(file=>file.path.endsWith('.js')).text;
 const css = result.outputFiles.find(file=>file.path.endsWith('.css')).text;
-const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob: file:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'"><style>${css}</style></head><body><input id="document-title" placeholder="无标题笔记" aria-label="笔记标题" hidden><main id="editor"></main><script>${js.replaceAll('</script','<\\/script')}</script></body></html>`;
+const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob: file: ash-image:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'"><style>${css}</style></head><body><input id="document-title" placeholder="无标题笔记" aria-label="笔记标题" hidden><main id="editor"></main><script>${js.replaceAll('</script','<\\/script')}</script></body></html>`;
 await fs.writeFile(path.join(output,'editor.html'),html);
 const packages = new Map();
 for (const input of Object.keys(result.metafile.inputs)) {
@@ -39,7 +49,8 @@ for (const input of Object.keys(result.metafile.inputs)) {
     directory = path.dirname(directory);
   }
 }
-const notices = ['ASH live editor — third-party software notices\nBundled locally; no CDN is required.\n'];
+const highlightLicense = await fs.readFile(path.join(delimiterDirectory,'license'),'utf8');
+const notices = ['ASH highlight delimiters — adapted from micromark-extension-gfm-strikethrough 2.1.0\n'+highlightLicense, 'ASH live editor — third-party software notices\nBundled locally; no CDN is required.\n'];
 for (const [name,{directory,info}] of [...packages].sort(([a],[b])=>a.localeCompare(b))) {
   const files = (await fs.readdir(directory)).filter(file=>/^licen[cs]e(?:\.|$)/i.test(file));
   notices.push(`\n${'='.repeat(72)}\n${name}\nLicense: ${info.license || 'See included notice'}\n`);

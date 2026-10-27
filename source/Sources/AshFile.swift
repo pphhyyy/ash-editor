@@ -2,7 +2,6 @@ import Foundation
 import CryptoKit
 import CommonCrypto
 import Security
-import CryptoKit
 
 struct AshDocument: Codable {
     var version = 1
@@ -35,7 +34,7 @@ enum AshFile {
     static let defaultPassword = "Asahi0423"
 
     /// Per-installation key stored in Keychain; explicit-password files remain interoperable.
-    private static func localKey() throws -> SymmetricKey {
+    static func localKey() throws -> SymmetricKey {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "app.ash.editor",
@@ -133,7 +132,7 @@ enum AshFile {
 
     static func isDefault(_ data: Data) -> Bool { data.prefix(4) == defaultMagic }
 
-    private static func deriveKey(_ password: String, salt: Data) throws -> SymmetricKey {
+    static func deriveKey(_ password: String, salt: Data) throws -> SymmetricKey {
         var bytes = [UInt8](repeating: 0, count: 32)
         let result = password.utf8CString.withUnsafeBufferPointer { pass in
             salt.withUnsafeBytes { saltBytes in

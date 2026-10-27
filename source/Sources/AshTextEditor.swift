@@ -9,6 +9,7 @@ struct AshTextEditor: NSViewRepresentable {
     var concealed: Bool
     var focusMode: Bool
     var alignment: String
+    var pageMargin: Double = 0
     var documentTitle: Binding<String>? = nil
     var showsDocumentTitle = false
     var fading = false
@@ -22,8 +23,12 @@ struct AshTextEditor: NSViewRepresentable {
     var showsScrollIndicators = true
     var startAtEnd = false
     var onCancel: (() -> Void)? = nil
+    var pasteImage: () throws -> String? = { nil }
+    var onError: (String) -> Void = { _ in }
 
-    func makeCoordinator() -> Coordinator { Coordinator(text: $text, isCurrent: isCurrent, onFocus: onFocus) }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text, isCurrent: isCurrent, onFocus: onFocus, pasteImage: pasteImage, onError: onError)
+    }
 
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSScrollView()
@@ -36,6 +41,10 @@ struct AshTextEditor: NSViewRepresentable {
             guard let coordinator, coordinator.isCurrent() else { return }
             coordinator.onFocus()
         }
+        editor.onPasteImage = { [weak coordinator = context.coordinator, weak editor] in
+            guard let coordinator, let editor else { return false }
+            return coordinator.handleClipboardImagePaste(in: editor)
+        }
         editor.isRichText = false
         editor.isEditable = true
         editor.isSelectable = true
@@ -43,7 +52,7 @@ struct AshTextEditor: NSViewRepresentable {
         editor.drawsBackground = false
         editor.backgroundColor = .clear
         editor.insertionPointColor = .systemPurple
-        editor.textContainerInset = NSSize(width: 5, height: 7)
+        editor.textContainerInset = NSSize(width: CGFloat(5 + pageMargin), height: 7)
         editor.isVerticallyResizable = true
         editor.isHorizontallyResizable = false
         editor.autoresizingMask = [.width]
@@ -72,6 +81,8 @@ struct AshTextEditor: NSViewRepresentable {
         guard isCurrent() else { return }
         context.coordinator.onFocus = onFocus
         context.coordinator.onCancel = onCancel
+        context.coordinator.pasteImage = pasteImage
+        context.coordinator.onError = onError
         context.coordinator.liveMarkdown = liveMarkdown
         let focusRequested = focusToken > 0 && context.coordinator.lastFocusToken != focusToken
         context.coordinator.lastFocusToken = focusToken
@@ -92,15 +103,19 @@ struct AshTextEditor: NSViewRepresentable {
             heading.isHidden = !showsDocumentTitle || concealed || fading
             if heading.currentEditor() == nil { heading.stringValue = documentTitle?.wrappedValue ?? "" }
             heading.textColor = concealed || fading ? .clear : ink
+            let leftInset = CGFloat(5 + pageMargin)
+            let headingFrame = NSRect(x: leftInset, y: 7,
+                                      width: max(0, editor.bounds.width - leftInset - 5), height: 42)
+            if heading.frame != headingFrame { heading.frame = headingFrame }
         }
         // Status/count updates arrive on every keystroke in standard mode.
         // Do not invalidate the entire text layout for an unchanged appearance.
-        let style = "\(size)|\(ink)|\(alignment)|\(concealed)|\(fading)|\(showsDocumentTitle)|\(liveMarkdown)"
+        let style = "\(size)|\(ink)|\(alignment)|\(pageMargin)|\(concealed)|\(fading)|\(showsDocumentTitle)|\(liveMarkdown)"
         let needsStyling = replacedText || context.coordinator.appliedStyle != style
         context.coordinator.configureFade(editor, active: fading, opacity: fadeInitialOpacity, duration: fadeDuration, ink: ink)
         if needsStyling {
             context.coordinator.appliedStyle = style
-            let inset = NSSize(width: 5, height: showsDocumentTitle ? 62 : 7)
+            let inset = NSSize(width: CGFloat(5 + pageMargin), height: showsDocumentTitle ? 62 : 7)
             if editor.textContainerInset != inset { editor.textContainerInset = inset }
             editor.textColor = (concealed || fading) ? .clear : ink
             editor.selectedTextAttributes = [.foregroundColor: (concealed || fading) ? NSColor.clear : NSColor.selectedTextColor,
@@ -147,8 +162,21 @@ struct AshTextEditor: NSViewRepresentable {
         var wantsFocus: () -> Bool = { true }
         var onFocus: () -> Void
         var onCancel: (() -> Void)?
+        var pasteImage: () throws -> String?
+        var onError: (String) -> Void
         weak var heading: NSTextField?
         var documentTitle: Binding<String>?
+        // Use AppKit's edit operations and inverse operations, not whole-document
+        // snapshots. Keep histories separate for each native editor instance.
+        private let editingUndoManager: UndoManager = {
+            let manager = UndoManager()
+            manager.levelsOfUndo = 500
+            return manager
+        }()
+        private var lastUndoEditTime: TimeInterval?
+        private var lastUndoEditWasBoundary = false
+        func undoManager(for view: NSTextView) -> UndoManager? { editingUndoManager }
+
         private var fadeActive = false
         private var fadeOpacity = 0.35
         private var fadeSeconds = 4.0
@@ -183,6 +211,22 @@ struct AshTextEditor: NSViewRepresentable {
         }
 
         func textView(_ textView: NSTextView, shouldChangeTextIn affectedCharRange: NSRange, replacementString: String?) -> Bool {
+            // NSTextView normally coalesces adjacent typing until the selection
+            // changes. A pause closes that typing unit, matching ProseMirror's
+            // 500ms history grouping. Do not split an IME composition.
+            if editingUndoManager.isUndoing || editingUndoManager.isRedoing {
+                lastUndoEditTime = nil
+                lastUndoEditWasBoundary = false
+            } else if !textView.hasMarkedText() {
+                let now = ProcessInfo.processInfo.systemUptime
+                let boundary = (replacementString?.utf16.count ?? 0) > 1 ||
+                    replacementString?.contains("\n") == true || affectedCharRange.length > 1
+                if lastUndoEditTime.map({ now - $0 >= 0.5 }) == true || boundary || lastUndoEditWasBoundary {
+                    textView.breakUndoCoalescing()
+                }
+                lastUndoEditTime = now
+                lastUndoEditWasBoundary = boundary
+            }
             pendingFadeEdit = (affectedCharRange, (replacementString as NSString?)?.length ?? 0)
             return true
         }
@@ -218,15 +262,35 @@ struct AshTextEditor: NSViewRepresentable {
         }
 
         private func paintFade(_ editor: NSTextView) {
-            guard fadeActive, !editor.hasMarkedText(), let manager = editor.layoutManager else { return }
+            guard fadeActive, let manager = editor.layoutManager else { return }
             let count = (editor.string as NSString).length
             guard count > 0 else { fadeSpans = []; return }
+            let marked = editor.markedRange()
+            // IME owns only its marked range. Keep painting the rest of the
+            // document without changing composition attributes or selection.
+            func paint(_ range: NSRange, color: NSColor) {
+                guard range.length > 0 else { return }
+                let overlap = marked.location == NSNotFound
+                    ? NSRange(location: 0, length: 0) : NSIntersectionRange(range, marked)
+                if overlap.length == 0 {
+                    manager.addTemporaryAttribute(.foregroundColor, value: color, forCharacterRange: range)
+                    return
+                }
+                if range.location < overlap.location {
+                    manager.addTemporaryAttribute(.foregroundColor, value: color,
+                        forCharacterRange: NSRange(location: range.location, length: overlap.location - range.location))
+                }
+                if NSMaxRange(overlap) < NSMaxRange(range) {
+                    manager.addTemporaryAttribute(.foregroundColor, value: color,
+                        forCharacterRange: NSRange(location: NSMaxRange(overlap), length: NSMaxRange(range) - NSMaxRange(overlap)))
+                }
+            }
             let now = Date.timeIntervalSinceReferenceDate
-            manager.addTemporaryAttribute(.foregroundColor, value: NSColor.clear, forCharacterRange: NSRange(location:0,length:count))
+            paint(NSRange(location: 0, length: count), color: .clear)
             fadeSpans.removeAll { now-$0.born >= fadeSeconds || NSMaxRange($0.range) > count }
             for span in fadeSpans where span.range.length > 0 {
                 let alpha = fadeOpacity * max(0,1-(now-span.born)/fadeSeconds)
-                manager.addTemporaryAttribute(.foregroundColor, value: fadeInk.withAlphaComponent(alpha), forCharacterRange: span.range)
+                paint(span.range, color: fadeInk.withAlphaComponent(alpha))
             }
         }
 
@@ -237,8 +301,24 @@ struct AshTextEditor: NSViewRepresentable {
         var lastConcealed = false
         var lastFocusMode = false
         var lastFocusToken = 0
-        init(text: Binding<String>, isCurrent: @escaping () -> Bool, onFocus: @escaping () -> Void) {
+        init(text: Binding<String>, isCurrent: @escaping () -> Bool, onFocus: @escaping () -> Void,
+             pasteImage: @escaping () throws -> String?, onError: @escaping (String) -> Void) {
             self.text = text; self.isCurrent = isCurrent; self.onFocus = onFocus
+            self.pasteImage = pasteImage; self.onError = onError
+        }
+
+        @discardableResult
+        fileprivate func handleClipboardImagePaste(in editor: AshInputTextView) -> Bool {
+            guard isCurrent(), wantsFocus(), editor.isEditable,
+                  editor.window?.isKeyWindow == true else { return false }
+            do {
+                guard let reference = try pasteImage() else { return false }
+                editor.insertText("![剪贴图片](\(reference))", replacementRange: editor.selectedRange())
+                return true
+            } catch {
+                onError("粘贴图片失败：\(error.localizedDescription)")
+                return true
+            }
         }
         func textDidBeginEditing(_ notification: Notification) { if isCurrent() { onFocus() } }
         func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
@@ -373,6 +453,18 @@ struct AshTextEditor: NSViewRepresentable {
 /// to obtain keyboard focus when the user clicks its writing surface.
 private final class AshInputTextView: NSTextView {
     var onEditorFocus: (() -> Void)?
+    var onPasteImage: (() -> Bool)?
+
+    override func paste(_ sender: Any?) {
+        if onPasteImage?() == true { return }
+        super.paste(sender)
+    }
+
+    override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
+        if item.action == #selector(paste(_:)) { return isEditable }
+        return super.validateUserInterfaceItem(item)
+    }
+
     override func becomeFirstResponder() -> Bool {
         let accepted = super.becomeFirstResponder()
         if accepted { onEditorFocus?() }

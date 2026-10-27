@@ -60,6 +60,25 @@ final class FolderWorkspace: ObservableObject {
         }
     }
 
+    func close() {
+        if accessingRoot { grantedURL?.stopAccessingSecurityScopedResource() }
+        accessingRoot = false
+        grantedURL = nil
+        rootURL = nil
+        nodes = []
+        expandedPaths = []
+        errorMessage = nil
+        defaults.removeObject(forKey: bookmarkKey)
+    }
+
+    /// Whether the existing folder grant already covers this document.
+    func authorizes(_ url: URL) -> Bool {
+        guard let rootURL else { return false }
+        let root = rootURL.standardizedFileURL.resolvingSymlinksInPath().path
+        let target = url.standardizedFileURL.resolvingSymlinksInPath().path
+        return target == root || target.hasPrefix(root.hasSuffix("/") ? root : root + "/")
+    }
+
     func toggle(_ url: URL) {
         if expandedPaths.contains(url.path) { expandedPaths.remove(url.path) }
         else { expandedPaths.insert(url.path) }
@@ -135,6 +154,7 @@ struct WorkspaceFileTreeRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .modifier(WorkspaceFileDragModifier(url: node.url, enabled: !node.isDirectory))
             .help(node.url.path)
             .contextMenu {
                 Button("在访达中显示") { onReveal(node.url) }
@@ -156,6 +176,27 @@ struct WorkspaceFileTreeRow: View {
                     }
                 }
             }
+        }
+    }
+}
+
+private struct WorkspaceFileDragModifier: ViewModifier {
+    let url: URL
+    let enabled: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if enabled {
+            content.onDrag {
+                makeASHEditorDragProvider(.file(url))
+            } preview: {
+                Label(url.lastPathComponent, systemImage: url.pathExtension.lowercased() == "ash" ? "lock.doc" : "doc.text")
+                    .font(.system(size: 12))
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 9))
+            }
+        } else {
+            content
         }
     }
 }

@@ -91,6 +91,7 @@ struct EditorView: View {
     @State private var primaryFocusToken = 0
     @State private var secondaryFocusToken = 0
     @AppStorage("ash.defaultFontSize") private var fontSize = 18.0
+    @AppStorage("ash.mathDelimiter") private var mathDelimiter = "dollar"
     @AppStorage("ash.livePreviewEnabled") private var livePreviewEnabled = true
     @AppStorage("ash.uiScale") private var uiScale = 1.0
     @AppStorage("ash.textAlignment") private var alignment = "left"
@@ -182,11 +183,7 @@ struct EditorView: View {
         HStack(spacing: 0) {
             if !focusMode { sidebar }
             VStack(spacing: 0) {
-                if focusMode {
-                    // Keep tabs out of the native title-bar drag zone, so
-                    // dragging a tab does not move the whole window.
-                    EditorWindowDragArea().frame(height: 5)
-                } else {
+                if !focusMode {
                     titleBar
                 }
                 workspace
@@ -196,10 +193,12 @@ struct EditorView: View {
         .background(canvasColor.ignoresSafeArea())
         .background(EditorWindowCloseHook(interceptor: closeInterceptor) { window in
             editorWindow = window
-            // In focus mode AppKit's transparent title-bar drag region overlaps
-            // the tab row. Disable that implicit drag path; the 5pt strip below
-            // moves the window explicitly, while tab events stay with the tabs.
-            window.isMovable = !focusMode
+            // Focus-mode dragging is scoped to blank areas in the tab bar.
+            window.titleVisibility = .hidden
+            window.titlebarAppearsTransparent = true
+            window.styleMask.insert(.fullSizeContentView)
+            window.isMovable = true
+            window.isMovableByWindowBackground = false
             closeInterceptor.attach(to: window, hasUnsavedChanges: { hasUnsavedChanges },
                                     prompt: { showingUnsavedPrompt = true },
                                     didClose: { cleanupEditor() })
@@ -491,6 +490,8 @@ struct EditorView: View {
                 if folderWorkspace.rootURL != nil {
                     Button { folderWorkspace.refresh() } label: { Image(systemName: "arrow.clockwise") }
                         .help("刷新文件夹").accessibilityLabel("刷新文件夹")
+                    Button { folderWorkspace.close() } label: { Image(systemName: "xmark") }
+                        .help("关闭当前文件夹").accessibilityLabel("关闭当前文件夹")
                 }
             }.font(.system(size: 11)).buttonStyle(.plain).foregroundStyle(purple)
             if folderExpanded {
@@ -544,31 +545,47 @@ struct EditorView: View {
 
     private func documentPane(_ pane: AshDocumentPane) -> some View {
         let secondary = pane == .secondary
+        let paneDocumentID = selectedTabID(pane)
         let paneTitle = secondary ? $secondaryTitle : $title
         let paneMarkdown = secondary ? $secondaryMarkdown : $markdown
+        let paneURL = secondary ? secondaryFileURL : fileURL
+        let paneStorage = secondary ? secondaryStorage : primaryStorage
+        let imageWorkspaceRoot = folderWorkspace.rootURL
         return VStack(spacing: 0) {
             tabBar(pane)
             Group {
                 if showingPreview && !privacy && !fadingPrivacy {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 18) {
-                            TextField("无标题笔记", text: paneTitle)
-                                .font(.system(size: 30, weight: .semibold, design: .rounded))
-                                .textFieldStyle(.plain).foregroundStyle(fontColor)
-                            MarkdownPreview(markdown: paneMarkdown.wrappedValue, color: fontColor,
-                                            background: theme.paper, size: fontSize, alignment: alignment)
-                        }
-                        .padding(.horizontal, pageMargin).padding(.vertical, 22)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
+                    // Use the same Markdown grammar and palette for editing and
+                    // reading, including Obsidian highlight marks.
+                    LiveMarkdownEditor(text: paneMarkdown, size: fontSize, color: fontColor,
+                        isNight: theme == .night, themeName: theme.rawValue, readOnly: true,
+                        concealed: false, documentTitle: paneTitle, showsDocumentTitle: true,
+                        fading: false, fadeInitialOpacity: fadeInitialOpacity, fadeDuration: fadeDuration,
+                        alignment: alignment, pageMargin: pageMargin, secondary: secondary,
+                        mathDelimiter: mathDelimiter,
+                        loadImage: { reference in
+                            try ASHImageAssets.load(reference, documentURL: paneURL, workspaceRoot: imageWorkspaceRoot, storage: paneStorage,
+                                readData: { assetURL in try withFileAccess(assetURL) { try Data(contentsOf: $0) } })
+                        },
+                        isCurrent: { selectedTabID(pane) == paneDocumentID },
+                        wantsFocus: { false }, onFocus: { activePane = pane },
+                        pasteImage: {
+                            guard let image = ASHImageAssets.imageFromPasteboard() else { return nil }
+                            return try ASHImageAssets.storeDraft(image.data, mimeType: image.mimeType, in: imageWorkspaceRoot)
+                        },
+                        onError: { message in errorMessage = message; showingError = true })
+                        .id(selectedTabID(pane))
                 } else {
                     inputEditor(paneMarkdown, secondary: secondary, focus: focusMode)
-                        .padding(.horizontal, focusMode ? 12 : pageMargin)
                         .padding(.top, focusMode ? 4 : 12)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
+            .onDrop(of: [ASHEditorDragType.tab, ASHEditorDragType.file], delegate: DocumentPaneDropDelegate(
+                moveTab: { moveDroppedTab($0, to: pane, before: nil) },
+                openFile: { openDroppedFile($0, in: pane) }
+            ))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.paper)
@@ -579,14 +596,26 @@ struct EditorView: View {
     private func inputEditor(_ value: Binding<String>, secondary: Bool, focus: Bool) -> some View {
         let pane: AshDocumentPane = secondary ? .secondary : .primary
         let documentID = selectedTabID(pane)
+        let paneURL = secondary ? secondaryFileURL : fileURL
+        let paneStorage = secondary ? secondaryStorage : primaryStorage
+        let imageWorkspaceRoot = folderWorkspace.rootURL
         if livePreviewEnabled {
-            LiveMarkdownEditor(text: value, size: fontSize, color: fontColor, isNight: theme == .night, concealed: privacy,
+            LiveMarkdownEditor(text: value, size: fontSize, color: fontColor, isNight: theme == .night, themeName: theme.rawValue, concealed: privacy,
                                documentTitle: secondary ? $secondaryTitle : $title, showsDocumentTitle: true,
                                fading: fadingPrivacy, fadeInitialOpacity: fadeInitialOpacity, fadeDuration: fadeDuration,
-                               alignment: alignment, secondary: secondary,
+                               alignment: alignment, pageMargin: pageMargin, secondary: secondary,
+                               mathDelimiter: mathDelimiter,
+                               loadImage: { reference in
+                                   try ASHImageAssets.load(reference, documentURL: paneURL, workspaceRoot: imageWorkspaceRoot, storage: paneStorage,
+                                       readData: { assetURL in try withFileAccess(assetURL) { try Data(contentsOf: $0) } })
+                               },
                                isCurrent: { selectedTabID(pane) == documentID },
                                wantsFocus: { activePane == pane },
                                onFocus: { activePane = secondary ? .secondary : .primary },
+                               pasteImage: {
+                                   guard let image = ASHImageAssets.imageFromPasteboard() else { return nil }
+                                   return try ASHImageAssets.storeDraft(image.data, mimeType: image.mimeType, in: imageWorkspaceRoot)
+                               },
                                onError: { message in
                 livePreviewEnabled = false
                 errorMessage = message
@@ -595,13 +624,18 @@ struct EditorView: View {
             .id(documentID)
         } else {
             AshTextEditor(text: value, size: fontSize, color: fontColor, concealed: privacy,
-                          focusMode: focus, alignment: alignment,
+                          focusMode: focus, alignment: alignment, pageMargin: pageMargin,
                           documentTitle: secondary ? $secondaryTitle : $title, showsDocumentTitle: true,
                           fading: fadingPrivacy, fadeInitialOpacity: fadeInitialOpacity, fadeDuration: fadeDuration,
                           isCurrent: { selectedTabID(pane) == documentID },
                           wantsFocus: { activePane == pane },
                           onFocus: { activePane = secondary ? .secondary : .primary },
-                          focusToken: activePane == pane ? (secondary ? secondaryFocusToken : primaryFocusToken) : 0)
+                          focusToken: activePane == pane ? (secondary ? secondaryFocusToken : primaryFocusToken) : 0,
+                          pasteImage: {
+                              guard let image = ASHImageAssets.imageFromPasteboard() else { return nil }
+                              return try ASHImageAssets.storeDraft(image.data, mimeType: image.mimeType, in: imageWorkspaceRoot)
+                          },
+                          onError: { message in errorMessage = message; showingError = true })
             .id(documentID)
         }
     }
@@ -640,6 +674,16 @@ struct EditorView: View {
         VStack(alignment: .leading, spacing: 18) {
             Label("偏好设置", systemImage: "slider.horizontal.3").font(.system(size: 19, weight: .semibold))
             Picker("主题", selection: $theme) { ForEach(AshTheme.allCases) { Text($0.rawValue).tag($0) } }.pickerStyle(.segmented)
+            GroupBox("数学公式") {
+                VStack(alignment: .leading, spacing: 7) {
+                    Picker("公式分隔符", selection: $mathDelimiter) {
+                        Text("$…$ / $$…$$").tag("dollar")
+                        Text("\\(…\\) / \\[…\\]").tag("latex")
+                    }.pickerStyle(.segmented)
+                    Text("选择后会转换当前文档中公式的 Markdown 写法；公式在编辑器中使用 KaTeX 预览。")
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                }.padding(6)
+            }
             GroupBox("渐隐文字") {
                 VStack(alignment: .leading, spacing: 9) {
                     Toggle("开启渐隐", isOn: Binding(get: { fadingPrivacy }, set: { _ in toggleFadingPrivacy() }))
@@ -892,10 +936,14 @@ struct EditorView: View {
                               select: { activateTab(TabReference(id: $0, pane: pane)) },
                               close: { requestCloseTab(TabReference(id: $0, pane: pane)) },
                               new: { activePane = pane; requestNewDocument() },
+                              allowsWindowDrag: focusMode,
+                              leadingInset: focusMode && pane == .primary ? CGFloat(76 / uiScale) : 0,
+                              windowControlExclusion: focusMode && pane == .primary ? CGFloat(64 / uiScale) : 0,
                               moveRight: { moveTab(TabReference(id: $0, pane: pane), layout: .sideBySide) },
                               moveBelow: { moveTab(TabReference(id: $0, pane: pane), layout: .stacked) },
-                              reorder: { moveDroppedTab($0, to: pane, before: $1) })
-            .padding(.leading, focusMode ? CGFloat(76 / uiScale) : 0)
+                              moveDroppedTab: { moveDroppedTab($0, to: pane, before: $1) },
+                              openDroppedFile: { openDroppedFile($0, in: pane) })
+            .frame(height: focusMode ? 43 : 34)
             .overlay(alignment: .top) {
                 if splitMode != .off && activePane == pane { Rectangle().fill(purple.opacity(0.4)).frame(height: 1) }
             }
@@ -1044,13 +1092,19 @@ struct EditorView: View {
         }.padding(24).frame(width: 390)
     }
 
-    private func openPanel(forSecondary: Bool = false) {
+    private func openPanel(forSecondary: Bool = false, authorizationURL: URL? = nil) {
         if chatMode { closeChatMode() }
         pendingSecondary = forSecondary
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "ash") ?? .data, .plainText]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
+        if let authorizationURL {
+            panel.title = "为最近文档重新授权"
+            panel.prompt = "授权并打开"
+            panel.directoryURL = authorizationURL.deletingLastPathComponent()
+            panel.nameFieldStringValue = authorizationURL.lastPathComponent
+        }
         guard let window = editorWindow ?? NSApp.keyWindow else { status = "无法取得主窗口"; return }
         panel.beginSheetModal(for: window) { response in
             guard response == .OK, let url = panel.url else { return }
@@ -1082,6 +1136,24 @@ struct EditorView: View {
 
     private func openSidebarDocument(_ url: URL) {
         requestOpenDocument(url, toSecondary: activePane == .secondary)
+    }
+
+    private func openDroppedFile(_ url: URL, in destination: AshDocumentPane) {
+        let standardizedURL = url.standardizedFileURL
+        for source in [AshDocumentPane.primary, .secondary] {
+            if let tab = tabRecords(source).first(where: {
+                $0.sourceURL?.standardizedFileURL == standardizedURL
+            }) {
+                let reference = TabReference(id: tab.id, pane: source)
+                if source == destination {
+                    activateTab(reference)
+                } else {
+                    _ = moveDroppedTab(tab.id, to: destination, before: nil)
+                }
+                return
+            }
+        }
+        requestOpenDocument(standardizedURL, toSecondary: destination == .secondary)
     }
 
     private func requestOpenDocument(_ url: URL, toSecondary: Bool) {
@@ -1208,7 +1280,7 @@ struct EditorView: View {
         } catch { errorMessage = error.localizedDescription; showingError = true }
     }
 
-    /// Ordinary Save always retains the open document's URL, format and encryption credential.
+    /// Save preserves format and credentials; a changed title renames the file in its current folder.
     private func savePanel(forSecondary: Bool = false) {
         LiveMarkdownEditors.flush(secondary: forSecondary) { saveCurrentDocument(forSecondary: forSecondary) }
     }
@@ -1216,12 +1288,22 @@ struct EditorView: View {
         let target = forSecondary ? secondaryFileURL : fileURL
         guard let target else { saveAsPanel(forSecondary: forSecondary); return }
         let storage = forSecondary ? secondaryStorage : primaryStorage
-        let document = makeDocument(forSecondary: forSecondary)
-        let snapshot = EditorContentSnapshot(title: forSecondary ? secondaryTitle : title, markdown: document.markdown)
         do {
+            var document = makeDocument(forSecondary: forSecondary)
+            let destination = try DocumentStorage.synchronizedURL(title: forSecondary ? secondaryTitle : title, source: target)
+            document.title = destination.deletingPathExtension().lastPathComponent
+            let prepared = try ASHImageAssets.prepareForSave(markdown: document.markdown, destination: destination,
+                workspaceRoot: folderWorkspace.rootURL, storage: storage, sourceURL: target, sourceStorage: storage,
+                readData: { assetURL in try withFileAccess(assetURL) { try Data(contentsOf: $0) } })
+            document.markdown = prepared.markdown
+            let snapshot = EditorContentSnapshot(title: document.title, markdown: document.markdown)
             let data = try storage.encode(document)
-            try withFileAccess(target) { try data.write(to: $0, options: .atomic) }
-            finishSaving(target, storage: storage, snapshot: snapshot, secondary: forSecondary)
+            let savedURL = try withFileAccess(target) {
+                try DocumentStorage.save(data, to: $0, renamingTo: destination)
+            }
+            prepared.finishAfterDocumentSave()
+            if savedURL.standardizedFileURL != target.standardizedFileURL { try? recentIndex.remove(target) }
+            finishSaving(savedURL, storage: storage, snapshot: snapshot, secondary: forSecondary)
         } catch { saveFailed(error) }
     }
 
@@ -1300,15 +1382,28 @@ struct EditorView: View {
     }
 
     private func openRecent(_ url: URL) {
-        let insideWorkspace = folderWorkspace.rootURL.map {
-            url.resolvingSymlinksInPath().path.hasPrefix($0.resolvingSymlinksInPath().path + "/")
-        } ?? false
-        guard recentIndex.hasBookmark(for: url) || insideWorkspace else {
+        // If it is already open, switching to its tab needs no new file grant.
+        for pane in [AshDocumentPane.primary, .secondary] {
+            if let tab = tabRecords(pane).first(where: {
+                guard let sourceURL = $0.sourceURL else { return false }
+                return sameDocumentPath(sourceURL, url)
+            }) {
+                activateTab(TabReference(id: tab.id, pane: pane))
+                return
+            }
+        }
+
+        guard recentIndex.hasBookmark(for: url) || folderWorkspace.authorizes(url) else {
             status = "旧版最近文档需要重新授权，请在系统窗口中选择该文件一次"
-            openPanel(forSecondary: activePane == .secondary)
+            openPanel(forSecondary: activePane == .secondary, authorizationURL: url)
             return
         }
-        openSidebarDocument(url)
+        openSidebarDocument(recentIndex.accessURL(for: url))
+    }
+
+    private func sameDocumentPath(_ lhs: URL, _ rhs: URL) -> Bool {
+        lhs.standardizedFileURL.resolvingSymlinksInPath().path ==
+            rhs.standardizedFileURL.resolvingSymlinksInPath().path
     }
 
     private func openAshDocument(at url: URL, toSecondary: Bool) {
@@ -1350,6 +1445,14 @@ struct EditorView: View {
     }
 
     private func attachOpenedFile(_ url: URL, toSecondary: Bool) {
+        let filenameTitle = url.deletingPathExtension().lastPathComponent
+        if toSecondary {
+            secondaryTitle = filenameTitle
+            savedSecondary.title = filenameTitle
+        } else {
+            title = filenameTitle
+            savedPrimary.title = filenameTitle
+        }
         if toSecondary {
             secondaryFileURL = url
             secondarySourceURL = url
@@ -1371,9 +1474,10 @@ struct EditorView: View {
     }
 
     private func withFileAccess<T>(_ url: URL, _ operation: (URL) throws -> T) throws -> T {
-        let didStart = url.startAccessingSecurityScopedResource()
-        defer { if didStart { url.stopAccessingSecurityScopedResource() } }
-        return try operation(url)
+        let granted = recentIndex.accessURL(for: url)
+        let didStart = granted.startAccessingSecurityScopedResource()
+        defer { if didStart { granted.stopAccessingSecurityScopedResource() } }
+        return try operation(granted)
     }
 
     private func apply(_ document: AshDocument, toSecondary: Bool = false) {
@@ -1414,7 +1518,6 @@ struct EditorView: View {
 
     private func presentSaveAs(storage: DocumentStorage, secondary: Bool) {
         let document = makeDocument(forSecondary: secondary)
-        let snapshot = EditorContentSnapshot(title: secondary ? secondaryTitle : title, markdown: document.markdown)
         let source = secondary ? secondaryFileURL : fileURL
         let panel = NSSavePanel()
         panel.title = "另存为"
@@ -1442,8 +1545,18 @@ struct EditorView: View {
                    source.standardizedFileURL == url.standardizedFileURL {
                     throw NSError(domain: "ASH.Save", code: 1, userInfo: [NSLocalizedDescriptionKey: "请为 ASH 文件使用独立的 .ash 文件名，原 Markdown 文件会保留。"])
                 }
-                let data = try storage.encode(document)
+                var savedDocument = document
+                savedDocument.title = url.deletingPathExtension().lastPathComponent
+                let sourceURL = secondary ? secondaryFileURL : fileURL
+                let sourceStorage = secondary ? secondaryStorage : primaryStorage
+                let prepared = try ASHImageAssets.prepareForSave(markdown: savedDocument.markdown, destination: url,
+                    workspaceRoot: folderWorkspace.rootURL, storage: storage, sourceURL: sourceURL, sourceStorage: sourceStorage,
+                    readData: { assetURL in try withFileAccess(assetURL) { try Data(contentsOf: $0) } })
+                savedDocument.markdown = prepared.markdown
+                let snapshot = EditorContentSnapshot(title: savedDocument.title, markdown: savedDocument.markdown)
+                let data = try storage.encode(savedDocument)
                 try withFileAccess(url) { try data.write(to: $0, options: .atomic) }
+                prepared.finishAfterDocumentSave()
                 finishSaving(url, storage: storage, snapshot: snapshot, secondary: secondary)
             } catch { saveFailed(error) }
         }
@@ -1452,7 +1565,8 @@ struct EditorView: View {
     private func finishSaving(_ url: URL, storage: DocumentStorage, snapshot: EditorContentSnapshot, secondary: Bool) {
         attachOpenedFile(url, toSecondary: secondary)
         setStorage(storage, secondary: secondary)
-        if secondary { savedSecondary = snapshot } else { savedPrimary = snapshot }
+        if secondary { secondaryMarkdown = snapshot.markdown; savedSecondary = snapshot }
+        else { markdown = snapshot.markdown; savedPrimary = snapshot }
         remember(url)
         status = "已保存：\(url.lastPathComponent)"
         folderWorkspace.refresh()
@@ -1637,30 +1751,6 @@ private struct EditorWindowCloseHook: NSViewRepresentable {
 
     func updateNSView(_ view: NSView, context: Context) {
         DispatchQueue.main.async { if let window = view.window { onAttach(window) } }
-    }
-}
-
-private struct EditorWindowDragArea: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { DragView() }
-    func updateNSView(_ view: NSView, context: Context) {}
-
-    private final class DragView: NSView {
-        private var startMouse: NSPoint?
-        private var startWindow: NSPoint?
-
-        override var mouseDownCanMoveWindow: Bool { false }
-        override func mouseDown(with event: NSEvent) {
-            guard let window else { return }
-            startMouse = window.convertPoint(toScreen: event.locationInWindow)
-            startWindow = window.frame.origin
-        }
-        override func mouseDragged(with event: NSEvent) {
-            guard let window, let startMouse, let startWindow else { return }
-            let point = window.convertPoint(toScreen: event.locationInWindow)
-            window.setFrameOrigin(NSPoint(x: startWindow.x + point.x - startMouse.x,
-                                          y: startWindow.y + point.y - startMouse.y))
-        }
-        override func mouseUp(with event: NSEvent) { startMouse = nil; startWindow = nil }
     }
 }
 
