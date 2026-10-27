@@ -41,6 +41,9 @@ struct LiveMarkdownEditor: NSViewRepresentable {
         view.onPasteImage = { [weak coordinator = context.coordinator] in
             coordinator?.handleClipboardImagePaste() ?? false
         }
+        view.onPasteMath = { [weak coordinator = context.coordinator] in
+            coordinator?.handleClipboardMathPaste() ?? false
+        }
         view.setValue(false, forKey: "drawsBackground")
         view.navigationDelegate = context.coordinator
         view.allowsBackForwardNavigationGestures = false
@@ -170,6 +173,19 @@ struct LiveMarkdownEditor: NSViewRepresentable {
             }
         }
 
+        @discardableResult
+        func handleClipboardMathPaste() -> Bool {
+            guard editorReady, isCurrent(), appearance["readOnly"] as? Bool == false,
+                  let webView, webView.window?.isKeyWindow == true,
+                  let markdown = NSPasteboard.general.string(forType: .string),
+                  containsLatexMathForPaste(markdown),
+                  let encoded = try? JSONSerialization.data(withJSONObject: [markdown]),
+                  let json = String(data: encoded, encoding: .utf8), json.count >= 2 else { return false }
+            let argument = String(json.dropFirst().dropLast())
+            webView.evaluateJavaScript("window.ashEditor.pasteMarkdown(\(argument)); null", completionHandler: nil)
+            return true
+        }
+
         func flush(_ completion: @escaping () -> Void) {
             guard loaded, let webView else { completion(); return }
             let revision = epoch
@@ -208,15 +224,23 @@ struct LiveMarkdownEditor: NSViewRepresentable {
 /// text and other pasteboard contents to WebKit.
 private final class ASHImagePasteWebView: WKWebView {
     var onPasteImage: (() -> Bool)?
+    var onPasteMath: (() -> Bool)?
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        if ownsFirstResponder, isStandardPasteShortcut(event), onPasteImage?() == true { return true }
+        if ownsFirstResponder, isStandardPasteShortcut(event), handleSpecialPaste() { return true }
         return super.performKeyEquivalent(with: event)
     }
 
     override func keyDown(with event: NSEvent) {
-        if ownsFirstResponder, isStandardPasteShortcut(event), onPasteImage?() == true { return }
+        if ownsFirstResponder, isStandardPasteShortcut(event), handleSpecialPaste() { return }
         super.keyDown(with: event)
+    }
+
+    private func handleSpecialPaste() -> Bool {
+        // Images keep their existing native import path. Formula Markdown is
+        // handled from NSPasteboard so WKWebView cannot reinterpret its `\\[` and
+        // `\\]` characters as rich-HTML text and escape them on serialization.
+        onPasteImage?() == true || onPasteMath?() == true
     }
 
     private var ownsFirstResponder: Bool {
@@ -234,6 +258,66 @@ private final class ASHImagePasteWebView: WKWebView {
         let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
         return modifiers == .command
     }
+}
+
+private func containsLatexMathForPaste(_ markdown: String) -> Bool {
+    let fencePattern = #"^\s{0,3}(`{3,}|~{3,})"#
+    let fenceRegex = try? NSRegularExpression(pattern: fencePattern)
+    var fence: (character: Character, length: Int)?
+    var outsideCode: [String] = []
+
+    for line in markdown.components(separatedBy: .newlines) {
+        let range = NSRange(line.startIndex..., in: line)
+        if let match = fenceRegex?.firstMatch(in: line, range: range),
+           let markerRange = Range(match.range(at: 1), in: line) {
+            let marker = String(line[markerRange])
+            let character = marker.first!
+            if let activeFence = fence {
+                if character == activeFence.character && marker.count >= activeFence.length { fence = nil }
+            } else {
+                fence = (character, marker.count)
+            }
+            continue
+        }
+        if fence == nil { outsideCode.append(line) }
+    }
+
+    let source = outsideCode.joined(separator: "\n")
+    func isEscaped(at index: String.Index) -> Bool {
+        var cursor = index
+        var slashCount = 0
+        while cursor > source.startIndex {
+            let previous = source.index(before: cursor)
+            guard source[previous] == "\\" else { break }
+            slashCount += 1
+            cursor = previous
+        }
+        return slashCount % 2 == 1
+    }
+
+    func isRepeatedBackslashDelimiter(at index: String.Index) -> Bool {
+        guard index > source.startIndex else { return false }
+        return source[source.index(before: index)] == "\\"
+    }
+
+    for (open, close) in [("\\[", "\\]"), ("\\(", "\\)")] {
+        var searchStart = source.startIndex
+        while let opening = source.range(of: open, range: searchStart..<source.endIndex) {
+            // Clipboard text copied from GPT may escape the Markdown math
+            // delimiter itself (`\\[`), so the matching slash looks escaped
+            // to the normal parity check. Treat a repeated run as a copied
+            // math delimiter; JavaScript canonicalizes that run before parse.
+            if !isEscaped(at: opening.lowerBound) || isRepeatedBackslashDelimiter(at: opening.lowerBound) {
+                var closeStart = opening.upperBound
+                while let closing = source.range(of: close, range: closeStart..<source.endIndex) {
+                    if !isEscaped(at: closing.lowerBound) || isRepeatedBackslashDelimiter(at: closing.lowerBound) { return true }
+                    closeStart = closing.upperBound
+                }
+            }
+            searchStart = opening.upperBound
+        }
+    }
+    return false
 }
 
 private final class ASHImageSchemeHandler: NSObject, WKURLSchemeHandler {

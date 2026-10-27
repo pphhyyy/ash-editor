@@ -1,6 +1,6 @@
-# ASH 2.0.3
+# ASH 2.0.4
 
-本目录基于 ASH 1.0 / build18 源码。2.0 加入图片与公式功能；2.0.1 修复切换公式定界符后的预览更新；2.0.2 修复打开文档时反斜杠显示公式的块级解析；2.0.3 修复粘贴带反斜杠公式的 Markdown 后没有进入公式预览的问题，原 1.0 Release 保持不变。
+本目录基于 ASH 1.0 / build18 源码。2.0 加入图片与公式功能；2.0.1 修复切换公式定界符后的预览更新；2.0.2 修复打开文档时反斜杠显示公式的块级解析；2.0.4 build 7 修复从 GPT 等应用复制公式时，剪贴板中的重复公式分隔符被误判并由 WKWebView 再次转义的问题；矩阵行间的双反斜杠保持不变，原 1.0 Release 保持不变。
 
 ## 2.0 图片与公式
 
@@ -11,6 +11,7 @@
 - 文档写入成功后会移除粘贴时的明文暂存文件。解密失败或文档写入失败时不会删除原暂存图。
 - 图片默认居中显示，右键可切换为左对齐；拖拽右下角手柄调整大小时保持当前对齐。尺寸和对齐方式随 Markdown 保存，重新打开后恢复，原始加密图片不做缩放重编码。
 - KaTeX 字体已内嵌到本地编辑器资源，不依赖 CDN 或网络。
+- macOS 原生粘贴会优先从 NSPasteboard 读取公式 Markdown 纯文本；识别到 GPT 剪贴板中的重复分隔符时，只将 `\\[` / `\\]`、`\\(`/`\\)` 规范为单个反斜杠，再交给公式预览解析器。代码围栏、行内代码和矩阵行间的 `\\` 不改动；普通内容和图片沿用现有粘贴路径。网页 ClipboardEvent 也读取 WebKit 提供的 UTI 纯文本类型。
 
 ## 构建
 
@@ -26,7 +27,7 @@ xcodebuild -project ASH.xcodeproj -scheme ASH -configuration Release \
   CODE_SIGNING_ALLOWED=NO build
 ```
 
-构建产物为 `../build/DerivedData/Build/Products/Release/ASH.app`，应用显示名称为 `ASH`，版本号为 2.0.2，可从应用菜单“关于 ASH”查看。
+构建产物为 `../build/DerivedData/Build/Products/Release/ASH.app`，应用显示名称为 `ASH`，版本号和构建号由 `project.yml` 设置，可从应用菜单“关于 ASH”查看。
 
 ---
 

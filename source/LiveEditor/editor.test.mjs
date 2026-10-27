@@ -65,7 +65,9 @@ try {
   await page.evaluate(config=>window.ashEditor.configure({...config,epoch:3,markdown:'',mathDelimiter:'latex',concealed:false}),config);
   await page.locator('.ProseMirror').evaluate((editable,text)=>{
     const clipboardData = new DataTransfer();
-    clipboardData.setData('text/plain',text);
+    // Match WebKit's native AppKit pasteboard bridge: plain source is exposed
+    // under its UTI name while rich HTML is also present.
+    clipboardData.setData('public.utf8-plain-text',text);
     clipboardData.setData('text/html',`<p>${text}</p>`);
     editable.dispatchEvent(new ClipboardEvent('paste',{clipboardData,bubbles:true,cancelable:true}));
   },mathSource);
@@ -74,7 +76,30 @@ try {
   const pastedMarkdown = await page.evaluate(()=>window.ashEditor.inspect().markdown);
   assert.match(pastedMarkdown,/\\\[\s*\\boxed\{s_\{t\+1\}=f\(s_t,a_t\)\}\s*\\\]/);
   assert.match(pastedMarkdown,/\\\(p\(s_t\\mid h_t\)\\\)/);
-  console.log('PASS: pasted plain text with rich HTML and \\[...\\]/\\(...\\) renders immediately and preserves configured syntax');
+  console.log('PASS: pasted UTI plain text with rich HTML and \\[...\\]/\\(...\\) renders immediately and preserves configured syntax');
+
+  const gptCopiedSource = 'GPT复制内容\n\\\\[ s_t= \\begin{bmatrix} \\text{位置}\\\\ \\text{速度} \\end{bmatrix} \\\\]\n后续说明 \\\\(s_t\\mid h_t\\\\)。';
+  await page.evaluate(config=>window.ashEditor.configure({...config,epoch:4,markdown:'',mathDelimiter:'latex'}),config);
+  await page.locator('.ProseMirror').evaluate((editable,text)=>{
+    const clipboardData = new DataTransfer();
+    clipboardData.setData('public.utf8-plain-text',text);
+    clipboardData.setData('text/html',`<p>${text}</p>`);
+    editable.dispatchEvent(new ClipboardEvent('paste',{clipboardData,bubbles:true,cancelable:true}));
+  },gptCopiedSource);
+  await expect(page.locator('.ProseMirror .katex-display')).toHaveCount(1);
+  await expect(page.locator('.ProseMirror .katex')).toHaveCount(2);
+  const gptPastedMarkdown = await page.evaluate(()=>window.ashEditor.inspect().markdown);
+  assert.match(gptPastedMarkdown,/\\\[\s*s_t=\s*\\begin\{bmatrix\}/);
+  assert.match(gptPastedMarkdown,/\\text\{位置\}\\\\\s*\\text\{速度\}/,'Matrix row breaks keep their two TeX slashes');
+  assert.match(gptPastedMarkdown,/\\\(s_t\\mid h_t\\\)/,'Copied inline math delimiters are reduced to one slash');
+  console.log('PASS: GPT-style escaped math clipboard renders; paired delimiters normalize while TeX matrix row breaks remain intact');
+
+  await page.evaluate(config=>window.ashEditor.configure({...config,epoch:5,markdown:'',mathDelimiter:'latex'}),config);
+  const nativePasteSource = '说明\n\\\\[ s_t=\\begin{bmatrix}\\text{位置}\\\\ \\text{速度}\\end{bmatrix} \\\\]\n后续说明';
+  assert.equal(await page.evaluate(source=>window.ashEditor.pasteMarkdown(source),nativePasteSource),true);
+  await expect(page.locator('.ProseMirror .katex-display')).toHaveCount(1);
+  assert.match((await page.evaluate(()=>window.ashEditor.inspect())).markdown,/\\\[\s*s_t=\\begin\{bmatrix\}/);
+  console.log('PASS: native Markdown paste handoff recognizes GPT-style double-backslash delimiters');
 
   const messages = await page.evaluate(()=>window.ashMessages);
   assert.deepEqual(errors,[]);

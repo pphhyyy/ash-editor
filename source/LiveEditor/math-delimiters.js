@@ -4,6 +4,55 @@ const isEscaped = (text, index) => {
   return slashes % 2 === 1;
 };
 
+// ChatGPT's rich-text copy can put a Markdown escape in front of math
+// delimiters (for example `\\[`), although the copied content is intended
+// to be a formula. Collapse only repeated slashes immediately before a math
+// delimiter, leaving TeX commands and matrix row breaks such as `\\` alone.
+function normalizeClipboardLine(line) {
+  let output = '', index = 0;
+  while (index < line.length) {
+    if (line[index] === '`') {
+      let end = index + 1;
+      while (line[end] === '`') end++;
+      const ticks = line.slice(index, end);
+      const close = line.indexOf(ticks, end);
+      if (close >= 0) {
+        output += line.slice(index, close + ticks.length);
+        index = close + ticks.length;
+        continue;
+      }
+    }
+    if (line[index] === '\\') {
+      let end = index + 1;
+      while (line[end] === '\\') end++;
+      const delimiter = line[end];
+      const count = end - index;
+      output += '\\'.repeat(count > 1 && '[]()'.includes(delimiter) ? 1 : count);
+      index = end;
+      continue;
+    }
+    output += line[index++];
+  }
+  return output;
+}
+
+export function normalizeClipboardMathDelimiters(markdown) {
+  const lines = markdown.split(/(?<=\n)/);
+  let fence = null;
+  return lines.map(lineWithEnding => {
+    const ending = lineWithEnding.endsWith('\r\n') ? '\r\n' : lineWithEnding.endsWith('\n') ? '\n' : '';
+    const line = ending ? lineWithEnding.slice(0, -ending.length) : lineWithEnding;
+    const match = line.match(/^\s{0,3}(`{3,}|~{3,})/);
+    if (match) {
+      const marker = match[1];
+      if (!fence) fence = {char: marker[0], length: marker.length};
+      else if (marker[0] === fence.char && marker.length >= fence.length) fence = null;
+      return lineWithEnding;
+    }
+    return fence ? lineWithEnding : normalizeClipboardLine(line) + ending;
+  }).join('');
+}
+
 function transformInline(line, target) {
   let out = '', index = 0;
   while (index < line.length) {

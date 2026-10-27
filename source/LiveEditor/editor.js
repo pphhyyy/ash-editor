@@ -19,7 +19,7 @@ import { Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state';
 import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/classic.css';
 import './style.css';
-import { normalizeMathForPreview, transformMathDelimiters } from './math-delimiters.js';
+import { normalizeClipboardMathDelimiters, normalizeMathForPreview, transformMathDelimiters } from './math-delimiters.js';
 
 // Markdown remains the source of truth outside this editable ProseMirror document.
 // No HTML from a document is executed, and no CDN or remote service is used.
@@ -93,8 +93,20 @@ function containsLatexMath(markdown) {
   return false;
 }
 
+function clipboardPlainText(clipboard) {
+  // WebKit can expose AppKit pasteboard values under their native UTI names
+  // instead of MIME names. In that case Milkdown sees rich HTML, but a
+  // text/plain-only check misses the Markdown formula source entirely.
+  for (const type of ['text/plain', 'text/markdown', 'public.utf8-plain-text', 'NSStringPboardType', 'public.utf16-external-plain-text']) {
+    const value = clipboard?.getData(type);
+    if (value) return value;
+  }
+  return '';
+}
+
 function pasteMathMarkdown(markdown) {
-  const source = normalizeMathForPreview(transformMathDelimiters(markdown, mathDelimiter));
+  const clipboardMarkdown = normalizeClipboardMathDelimiters(markdown);
+  const source = normalizeMathForPreview(transformMathDelimiters(clipboardMarkdown, mathDelimiter));
   editor.editor.action(ctx => {
     const view = ctx.get(editorViewCtx);
     const parsed = ctx.get(parserCtx)(source);
@@ -141,7 +153,7 @@ function installImageHandling(editable) {
       post({type:'pasteImage'});
       return;
     }
-    const text = clipboard?.getData('text/plain') || '';
+    const text = normalizeClipboardMathDelimiters(clipboardPlainText(clipboard));
     if (!containsLatexMath(text)) return;
     // Rich clipboard HTML often contains the literal Markdown delimiters as
     // text nodes. Parse the plain-text Markdown after normalizing it so pasted
@@ -658,6 +670,12 @@ window.ashEditor = {
       view.dispatch(view.state.tr.replaceSelectionWith(image).scrollIntoView());
       view.focus();
     });
+  },
+  pasteMarkdown(markdown) {
+    const clipboardMarkdown = normalizeClipboardMathDelimiters(markdown);
+    if (!ready || !document.querySelector('.ProseMirror')?.isContentEditable || !containsLatexMath(clipboardMarkdown)) return false;
+    pasteMathMarkdown(clipboardMarkdown);
+    return true;
   },
   focus() { if (ready) editor.editor.action(ctx => ctx.get(editorViewCtx).focus()); },
   // Local-only testability: ProseMirror state and serialized Markdown, not a second editor.

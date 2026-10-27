@@ -42,8 +42,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.ash.editor
         PRODUCT_NAME: ASH
-        MARKETING_VERSION: 2.0.3
-        CURRENT_PROJECT_VERSION: 5
+        MARKETING_VERSION: 2.0.4
+        CURRENT_PROJECT_VERSION: 7
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_KEY_CFBundleDisplayName: ASH
         INFOPLIST_KEY_CFBundleIconFile: ASHHanddrawn
