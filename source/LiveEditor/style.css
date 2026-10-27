@@ -1,0 +1,60 @@
+:root { --ash-font-size:18px; --ash-ink:#383047; --ash-align:left; color-scheme:light dark; }
+* { box-sizing:border-box; }
+html,body { margin:0; min-height:100%; background:transparent; }
+body { color:var(--ash-ink); font-family:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif; }
+.milkdown {
+ --crepe-color-background:transparent; --crepe-color-on-background:var(--ash-ink);
+ --crepe-color-primary:#7954d8; --crepe-color-secondary:#e9def9; --crepe-color-inline-code:#8451c2;
+ --crepe-color-surface:#f5f0fb; --crepe-color-on-surface:#383047; --crepe-color-surface-low:#efe8f8;
+ --crepe-color-outline:#9789ad; --crepe-color-hover:#e9def9; --crepe-color-selected:#e3d5f6;
+ --crepe-font-default:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif;
+ --crepe-font-title:var(--crepe-font-default); --crepe-font-code:Menlo,Monaco,monospace;
+ --crepe-base-font-size:var(--ash-font-size);
+ color:var(--ash-ink); background:transparent; font-size:var(--ash-font-size);
+}
+.night-theme .milkdown {
+ --crepe-color-surface:#2b3035; --crepe-color-on-surface:#e1e5e9;
+ --crepe-color-surface-low:#353b41; --crepe-color-on-surface-variant:#c0c7ce;
+ --crepe-color-secondary:#414850; --crepe-color-outline:#68727c;
+ --crepe-color-hover:#454d55; --crepe-color-selected:#4a535c;
+}
+.milkdown .ProseMirror { padding:16px 10px 90px; min-height:calc(100vh - var(--ash-title-space, 0px)); outline:none; color:var(--ash-ink); font-size:var(--ash-font-size); line-height:1.7; text-align:var(--ash-align); overflow-wrap:anywhere; caret-color:#a341d3; }
+.milkdown .ProseMirror > :first-child { margin-top:0; }
+.milkdown .ProseMirror p { margin:0.5em 0; }
+.milkdown .ProseMirror h1 { font-size:1.9em; }
+.milkdown .ProseMirror h2 { font-size:1.55em; }
+.milkdown .ProseMirror h3 { font-size:1.3em; }
+.milkdown .ProseMirror table { width:100%; table-layout:fixed; border-collapse:collapse; }
+.milkdown .ProseMirror th,.milkdown .ProseMirror td { border:1px solid #bcb0ce; padding:8px 10px; min-width:60px; overflow-wrap:anywhere; }
+.milkdown .ProseMirror th p,.milkdown .ProseMirror td p { margin:0; }
+.milkdown .ProseMirror th { background:#8b66cb18; font-weight:600; }
+.milkdown .ProseMirror blockquote { border-left:3px solid #9065db; margin-left:0; padding-left:1em; opacity:0.85; }
+.milkdown .ProseMirror pre,.milkdown .cm-editor { text-align:left; font-family:Menlo,monospace; font-size:0.9em; }
+.milkdown .cm-editor { background:#8b66cb0c; border-radius:8px; }
+.milkdown .cm-content { caret-color:#a341d3; }
+.night-theme .milkdown .milkdown-code-block,
+.night-theme .milkdown .milkdown-code-block .cm-editor,
+.night-theme .milkdown .milkdown-code-block .cm-gutters { background:#2b3035; }
+.night-theme .milkdown .milkdown-code-block .cm-content,
+.night-theme .milkdown .milkdown-code-block .cm-line { color:#e1e5e9; }
+.night-theme .milkdown .milkdown-code-block .cm-gutters { color:#9da6af; }
+.night-theme .milkdown .milkdown-code-block .cm-activeLine,
+.night-theme .milkdown .milkdown-code-block .cm-activeLineGutter { background:#394047; }
+.milkdown details { border:1px solid #a588c44d; border-radius:8px; padding:9px 12px; margin:0.8em 0; }
+.milkdown summary { cursor:pointer; font-weight:600; }
+.milkdown summary span { outline:none; cursor:text; }
+.milkdown [data-details-body] { padding-top:5px; }
+.milkdown [data-type="html"] { font-family:Menlo,monospace; font-size:0.85em; white-space:pre-wrap; }
+.concealed .milkdown,.concealed .milkdown * { color:transparent!important; text-shadow:none!important; border-color:transparent!important; background:transparent!important; box-shadow:none!important; caret-color:#a341d3!important; }
+.concealed .milkdown *::selection { color:transparent!important; background:transparent!important; }
+.concealed img,.concealed svg,.concealed button,.concealed summary::marker { visibility:hidden!important; }
+.concealed .ProseMirror-selectednode { outline:none!important; }
+
+#document-title { display:block; width:100%; padding:12px 10px 20px; border:0; outline:none; background:transparent; color:var(--ash-ink); font:600 30px -apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif; }
+#document-title[hidden] { display:none; }
+.concealed #document-title { color:transparent; caret-color:#a341d3; }
+.concealed #document-title::placeholder { color:transparent; }
+.concealed .milkdown .ash-fading-char,.concealed .milkdown .ash-fading-char * { color:var(--ash-fade-color)!important; }
+
+/* Opacity changes do not rebuild text nodes, selection, or scroll geometry. */
+@keyframes ash-text-fade { from { opacity:var(--ash-fade-opacity, .35); } to { opacity:0; } }

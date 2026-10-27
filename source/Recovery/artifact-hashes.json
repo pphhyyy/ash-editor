@@ -1,0 +1,13 @@
+{
+  "originalExecutable": {
+    "path": "macos/build/ASH-v3.2-build16.app/Contents/MacOS/ASH",
+    "sha256": "2851b0cd39916fef4609bc3ad5a78fb4585a1cd457fe62e0b0c290d279a3eec4"
+  },
+  "rebuiltExecutable": {
+    "path": "source-build16-recovered/build/Recovery/Build/Products/Release/ASH.app/Contents/MacOS/ASH",
+    "sha256": "90e366a5d96d4737ebf2c13a58d5b7c14421b31e6cc7f5a503870796c1c5b46b"
+  },
+  "originalZipSHA256": "279df2b3a7583ef74df5387c7e42001bf9a62a81e5f27c57f4151e2d5c42d5ee",
+  "frontendSHA256": "43da2e4f4e0aa4f8a97f1c61be212e364f639bdb4d901ef058111d22906ecbcd",
+  "notes": "Whole executable hashes differ; all 39 file-backed Mach-O sections and exported symbol lists match. Existing release files were not modified."
+}

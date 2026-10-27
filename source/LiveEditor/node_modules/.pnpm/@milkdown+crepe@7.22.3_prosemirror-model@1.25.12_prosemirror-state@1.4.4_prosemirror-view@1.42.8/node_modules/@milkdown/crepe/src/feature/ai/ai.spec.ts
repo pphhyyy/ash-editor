@@ -1,0 +1,939 @@
+import type { EditorView } from '@milkdown/kit/prose/view'
+
+import { commandsCtx, editorViewCtx } from '@milkdown/kit/core'
+import {
+  clearDiffReviewCmd,
+  diffPluginKey,
+  startDiffReviewCmd,
+} from '@milkdown/kit/plugin/diff'
+import {
+  startStreamingCmd,
+  streamingPluginKey,
+} from '@milkdown/kit/plugin/streaming'
+import { TextSelection } from '@milkdown/kit/prose/state'
+import { $ctx, callCommand } from '@milkdown/kit/utils'
+import { describe, expect, test, vi } from 'vitest'
+import { nextTick } from 'vue'
+
+import type { AIProviderConfigValue } from './index'
+import type { AIPromptContext, AIProvider } from './types'
+
+import { Crepe, useCrepeFeatures } from '../../core'
+import { CrepeFeature } from '../index'
+import { mathInlineId } from '../latex/constants'
+import { aiProviderConfig, aiSessionCtx, runAICmd } from './commands'
+// Imported through the package's public entry on purpose: these are the
+// helpers a host with its own toolbar gets, so the tests exercise the same
+// path a consumer does rather than the internal modules.
+import { useAIInstructionTooltipAPI, useAIProviderConfig } from './index'
+// The slice objects stay internal. The import here only asserts that the
+// name-based helpers land on the instance the feature registers.
+import { aiInstructionTooltipAPI } from './instruction-tooltip'
+
+function waitForAsync() {
+  return new Promise<void>((resolve) => setTimeout(resolve, 0))
+}
+
+async function flushStream() {
+  // Streaming dispatches are scheduled across microtasks; a few ticks
+  // are enough for the simulated provider to drain.
+  for (let i = 0; i < 5; i++) await waitForAsync()
+}
+
+function dispatchKeyDown(
+  view: EditorView,
+  key: string,
+  modifiers: { metaKey?: boolean; ctrlKey?: boolean } = {}
+): boolean {
+  const event = new KeyboardEvent('keydown', {
+    key,
+    bubbles: true,
+    cancelable: true,
+    ...modifiers,
+  })
+  // Visit the `handleKeyDown` of every plugin until one claims the
+  // event. An `undefined` return keeps `someProp` looking. A `true`
+  // return short-circuits, which counts as handled.
+  return (
+    view.someProp('handleKeyDown', (handler) =>
+      handler(view, event) ? true : undefined
+    ) === true
+  )
+}
+
+describe('AI streaming inline markdown', () => {
+  // Regression: replace-selection / insert-at-cursor flushes used to
+  // insert the buffer's first line as a plain text node, which left
+  // markdown syntax like **bold** and [link](url) visible in the
+  // document. The fix in plugin-streaming/flush.ts parses the first
+  // line as inline markdown so marks/links survive into the doc tree.
+  test('first line preserves strong and link marks across a paragraph break', async () => {
+    const crepe = new Crepe({
+      defaultValue: 'pre',
+      features: { [CrepeFeature.AI]: true },
+      featureConfigs: {
+        [CrepeFeature.AI]: {
+          provider: async function* () {
+            yield '**bold** and [a](https://example.com).\n\nSecond block.'
+          },
+          diffReviewOnEnd: false,
+        },
+      },
+    })
+    await crepe.create()
+    try {
+      crepe.editor.action(callCommand(runAICmd.key, { instruction: 'go' }))
+      await flushStream()
+
+      const view = crepe.editor.action((ctx) => ctx.get(editorViewCtx))
+      const docText = view.state.doc.textContent
+      expect(docText).not.toContain('**')
+      expect(docText).not.toContain('](')
+
+      let foundStrong = false
+      let foundLink = false
+      view.state.doc.descendants((node) => {
+        if (node.marks.some((m) => m.type.name === 'strong')) foundStrong = true
+        if (node.marks.some((m) => m.type.name === 'link')) foundLink = true
+      })
+      expect(foundStrong).toBe(true)
+      expect(foundLink).toBe(true)
+    } finally {
+      await crepe.destroy()
+    }
+  })
+
+  test('single-line response parses inline marks instead of raw text', async () => {
+    const crepe = new Crepe({
+      defaultValue: 'pre',
+      features: { [CrepeFeature.AI]: true },
+      featureConfigs: {
+        [CrepeFeature.AI]: {
+          provider: async function* () {
+            yield '**bold** and [a](https://example.com)'
+          },
+          diffReviewOnEnd: false,
+        },
+      },
+    })
+    await crepe.create()
+    try {
+      crepe.editor.action(callCommand(runAICmd.key, { instruction: 'go' }))
+      await flushStream()
+
+      const view = crepe.editor.action((ctx) => ctx.get(editorViewCtx))
+      const docText = view.state.doc.textContent
+      expect(docText).not.toContain('**')
+      expect(docText).not.toContain('](')
+    } finally {
+      await crepe.destroy()
+    }
+  })
+
+  test('block markers survive even when the line also has inline marks', async () => {
+    // `# **bold**` parses as `heading(strong('bold'))`. Extracting
+    // the heading's content would lose the `# ` and rewrite the
+    // streamed text. The mid-paragraph insert should keep the
+    // literal characters as plain text.
+    const crepe = new Crepe({
+      defaultValue: 'pre',
+      features: { [CrepeFeature.AI]: true },
+      featureConfigs: {
+        [CrepeFeature.AI]: {
+          provider: async function* () {
+            yield '# **bold**'
+          },
+          diffReviewOnEnd: false,
+        },
+      },
+    })
+    await crepe.create()
+    try {
+      crepe.editor.action(callCommand(runAICmd.key, { instruction: 'go' }))
+      await flushStream()
+
+      const view = crepe.editor.action((ctx) => ctx.get(editorViewCtx))
+      const docText = view.state.doc.textContent
+      expect(docText).toContain('# **bold**')
+    } finally {
+      await crepe.destroy()
+    }
+  })
+
+  test('leading whitespace before inline marks is preserved', async () => {
+    // CommonMark would strip the leading space when wrapping the line
+    // in a paragraph; without explicit whitespace preservation the
+    // streamed token would collide with the preceding character once
+    // inserted mid-paragraph.
+    const crepe = new Crepe({
+      defaultValue: 'pre',
+      features: { [CrepeFeature.AI]: true },
+      featureConfigs: {
+        [CrepeFeature.AI]: {
+          provider: async function* () {
+            yield ' **bold**'
+          },
+          diffReviewOnEnd: false,
+        },
+      },
+    })
+    await crepe.create()
+    try {
+      crepe.editor.action(callCommand(runAICmd.key, { instruction: 'go' }))
+      await flushStream()
+
+      const view = crepe.editor.action((ctx) => ctx.get(editorViewCtx))
+      const docText = view.state.doc.textContent
+      expect(docText).toContain(' bold')
+      expect(docText).not.toContain('prebold')
+
+      let foundStrong = false
+      view.state.doc.descendants((node) => {
+        if (node.marks.some((m) => m.type.name === 'strong')) foundStrong = true
+      })
+      expect(foundStrong).toBe(true)
+    } finally {
+      await crepe.destroy()
+    }
+  })
+
+  test('inline math survives streaming through the real remark pipeline', async () => {
+    // The latex feature is on by default and parses `$...$` through
+    // remark-math. In plugin-streaming `$` is no unconditional fast-path
+    // token, because math detection needs a math node in the schema.
+    // This test pins the whole chain end to end.
+    const crepe = new Crepe({
+      defaultValue: 'pre',
+      features: { [CrepeFeature.AI]: true },
+      featureConfigs: {
+        [CrepeFeature.AI]: {
+          provider: async function* () {
+            yield 'The formula $a^2 + b^2 = c^2$ holds.'
+          },
+          diffReviewOnEnd: false,
+        },
+      },
+    })
+    await crepe.create()
+    try {
+      crepe.editor.action(callCommand(runAICmd.key, { instruction: 'go' }))
+      await flushStream()
+
+      const view = crepe.editor.action((ctx) => ctx.get(editorViewCtx))
+      expect(view.state.doc.textContent).not.toContain('$')
+
+      const values: string[] = []
+      view.state.doc.descendants((node) => {
+        if (node.type.name === mathInlineId)
+          values.push(node.attrs.value as string)
+      })
+      expect(values).toEqual(['a^2 + b^2 = c^2'])
+    } finally {
+      await crepe.destroy()
+    }
+  })
+
+  test('two-dollar prose streams in literally instead of becoming math', async () => {
+    // remark-math (default `singleDollarTextMath`) would greedily pair
+    // `$5 ... $10` into one inlineMath node, destroying the sentence
+    // into an uneditable atom mid-stream. The streaming fast path must
+    // keep such prose literal.
+    const crepe = new Crepe({
+      defaultValue: 'pre',
+      features: { [CrepeFeature.AI]: true },
+      featureConfigs: {
+        [CrepeFeature.AI]: {
+          provider: async function* () {
+            yield 'It costs $5 and I paid $10.'
+          },
+          diffReviewOnEnd: false,
+        },
+      },
+    })
+    await crepe.create()
+    try {
+      crepe.editor.action(callCommand(runAICmd.key, { instruction: 'go' }))
+      await flushStream()
+
+      const view = crepe.editor.action((ctx) => ctx.get(editorViewCtx))
+      expect(view.state.doc.textContent).toContain('$5 and I paid $10.')
+
+      let mathCount = 0
+      view.state.doc.descendants((node) => {
+        if (node.type.name === mathInlineId) mathCount++
+      })
+      expect(mathCount).toBe(0)
+    } finally {
+      await crepe.destroy()
+    }
+  })
+
+  // Regression: when the AI replaces the *whole inline content* of a
+  // paragraph at non-zero depth with multi-block content, the slice
+  // has openEnd:0 but `to` is at depth 1. ProseMirror's reconciliation
+  // of that depth mismatch used to drop the next sibling block.
+  // `applySplitBlock` now extends `to` past the parent close so the
+  // boundary matches the slice's openEnd. This test pins that
+  // behavior so future refactors don't reintroduce the drop.
+  test('multi-block replace covering whole paragraph keeps the next sibling', async () => {
+    const crepe = new Crepe({
+      defaultValue: 'first\n\nmiddle\n\nlast',
+      features: { [CrepeFeature.AI]: true },
+      featureConfigs: {
+        [CrepeFeature.AI]: {
+          provider: async function* () {
+            yield 'replaced inline.\n\nNew block.'
+          },
+          diffReviewOnEnd: false,
+        },
+      },
+    })
+    await crepe.create()
+    try {
+      // Programmatically select the entire inline content of the
+      // "middle" paragraph (avoids platform-specific Shift+End
+      // behavior that affected the e2e test).
+      crepe.editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx)
+        const doc = view.state.doc
+        let from = -1
+        let to = -1
+        doc.descendants((node, pos) => {
+          if (node.type.name === 'paragraph' && node.textContent === 'middle') {
+            from = pos + 1
+            to = pos + 1 + node.content.size
+            return false
+          }
+          return true
+        })
+        view.dispatch(
+          view.state.tr.setSelection(TextSelection.create(doc, from, to))
+        )
+      })
+
+      crepe.editor.action(callCommand(runAICmd.key, { instruction: 'go' }))
+      await flushStream()
+
+      const view = crepe.editor.action((ctx) => ctx.get(editorViewCtx))
+      const docText = view.state.doc.textContent
+      expect(docText).toContain('first')
+      expect(docText).toContain('replaced inline.')
+      expect(docText).toContain('New block.')
+      expect(docText).toContain('last')
+      expect(docText).not.toContain('middle')
+    } finally {
+      await crepe.destroy()
+    }
+  })
+})
+
+describe('AI onError', () => {
+  test('provider error triggers onError with aiProviderError code', async () => {
+    const onError = vi.fn()
+
+    const crepe = new Crepe({
+      features: {
+        [CrepeFeature.AI]: true,
+      },
+      featureConfigs: {
+        [CrepeFeature.AI]: {
+          provider: async function* () {
+            yield 'partial'
+            throw new Error('network failure')
+          },
+          onError,
+          diffReviewOnEnd: false,
+        },
+      },
+    })
+    await crepe.create()
+    try {
+      crepe.editor.action(callCommand(runAICmd.key, { instruction: 'test' }))
+      await waitForAsync()
+
+      expect(onError).toHaveBeenCalledOnce()
+      const error = onError.mock.calls[0]![0]
+      expect(error.code).toBe('aiProviderError')
+      expect(error.message).toContain('network failure')
+      expect(error.cause).toBeInstanceOf(Error)
+    } finally {
+      await crepe.destroy()
+    }
+  })
+
+  test('buildContext error triggers onError with aiBuildContextError code', async () => {
+    const onError = vi.fn()
+
+    const crepe = new Crepe({
+      features: {
+        [CrepeFeature.AI]: true,
+      },
+      featureConfigs: {
+        [CrepeFeature.AI]: {
+          provider: async function* () {
+            yield 'hello'
+          },
+          buildContext: () => {
+            throw new Error('context build failed')
+          },
+          onError,
+          diffReviewOnEnd: false,
+        },
+      },
+    })
+    await crepe.create()
+    try {
+      crepe.editor.action(callCommand(runAICmd.key, { instruction: 'test' }))
+      await waitForAsync()
+
+      expect(onError).toHaveBeenCalledOnce()
+      const error = onError.mock.calls[0]![0]
+      expect(error.code).toBe('aiBuildContextError')
+      expect(error.message).toContain('context build failed')
+      expect(error.cause).toBeInstanceOf(Error)
+    } finally {
+      await crepe.destroy()
+    }
+  })
+})
+
+describe('AI prompt context selection', () => {
+  // Regression: inline-only selections (e.g. selecting "bold" inside a
+  // single paragraph) used to fall through to `doc.textBetween` because
+  // `topNodeType.createAndFill` rejects inline content. That stripped
+  // marks before the selection ever reached the provider, so a single-
+  // paragraph translate would lose bold/italic/link formatting.
+  test('inline-only selection preserves marks in promptContext.selection', async () => {
+    const provider = vi.fn(async function* () {
+      yield 'unused'
+    })
+    const crepe = new Crepe({
+      defaultValue: '**bold** and *italic* text',
+      features: { [CrepeFeature.AI]: true },
+      featureConfigs: {
+        [CrepeFeature.AI]: { provider, diffReviewOnEnd: false },
+      },
+    })
+    await crepe.create()
+    try {
+      crepe.editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx)
+        const doc = view.state.doc
+        let from = -1
+        let to = -1
+        doc.descendants((node, pos) => {
+          if (node.type.name === 'paragraph') {
+            from = pos + 1
+            to = pos + 1 + node.content.size
+            return false
+          }
+          return true
+        })
+        view.dispatch(
+          view.state.tr.setSelection(TextSelection.create(doc, from, to))
+        )
+      })
+
+      crepe.editor.action(callCommand(runAICmd.key, { instruction: 'go' }))
+      await waitForAsync()
+
+      expect(provider).toHaveBeenCalled()
+      const [promptContext] = provider.mock.calls[0] as unknown as [
+        AIPromptContext,
+      ]
+      expect(promptContext.selection).toContain('**bold**')
+      expect(promptContext.selection).toContain('*italic*')
+    } finally {
+      await crepe.destroy()
+    }
+  })
+})
+
+describe('AI session retry metadata', () => {
+  async function makeCrepe() {
+    const crepe = new Crepe({
+      defaultValue: 'hello world',
+      features: { [CrepeFeature.AI]: true },
+      featureConfigs: {
+        [CrepeFeature.AI]: {
+          provider: async function* () {
+            yield 'replacement'
+          },
+        },
+      },
+    })
+    await crepe.create()
+    return crepe
+  }
+
+  test('runAICmd persists instruction, label, and selection range', async () => {
+    const crepe = await makeCrepe()
+    try {
+      crepe.editor.action(
+        callCommand(runAICmd.key, {
+          instruction: 'Improve writing',
+          label: 'Improving writing',
+        })
+      )
+      await flushStream()
+
+      const session = crepe.editor.action((ctx) => ctx.get(aiSessionCtx.key))
+      expect(session.lastInstruction).toBe('Improve writing')
+      expect(session.lastLabel).toBe('Improving writing')
+      expect(session.lastFrom).toBeGreaterThanOrEqual(0)
+      expect(session.lastTo).toBeGreaterThanOrEqual(session.lastFrom)
+    } finally {
+      await crepe.destroy()
+    }
+  })
+
+  test('rejects a second runAICmd while a session is in flight', async () => {
+    const crepe = new Crepe({
+      defaultValue: 'hello',
+      features: { [CrepeFeature.AI]: true },
+      featureConfigs: {
+        [CrepeFeature.AI]: {
+          provider: async function* () {
+            // The provider hangs, so the caller sees `runAICmd` return
+            // false.
+            await new Promise(() => {})
+            yield ''
+          },
+        },
+      },
+    })
+    await crepe.create()
+    try {
+      const first = crepe.editor.action(
+        callCommand(runAICmd.key, { instruction: 'first' })
+      )
+      const second = crepe.editor.action(
+        callCommand(runAICmd.key, { instruction: 'second' })
+      )
+
+      expect(first).toBe(true)
+      expect(second).toBe(false)
+    } finally {
+      await crepe.destroy()
+    }
+  })
+
+  test('lastInstruction survives session cleanup so Retry can replay it', async () => {
+    const crepe = await makeCrepe()
+    try {
+      crepe.editor.action(
+        callCommand(runAICmd.key, { instruction: 'Improve writing' })
+      )
+      await flushStream()
+
+      // Whether or not diff review activates, the persistent retry fields
+      // must outlive the live session state.
+      crepe.editor.action((ctx) => {
+        ctx.get(commandsCtx).call(clearDiffReviewCmd.key)
+      })
+
+      const session = crepe.editor.action((ctx) => ctx.get(aiSessionCtx.key))
+      expect(session.abortController).toBeNull()
+      expect(session.label).toBe('')
+      expect(session.lastInstruction).toBe('Improve writing')
+    } finally {
+      await crepe.destroy()
+    }
+  })
+})
+
+describe('AI keybindings', () => {
+  test('Mod-Enter accepts all changes for an AI-owned diff review', async () => {
+    const crepe = new Crepe({
+      defaultValue: 'hello',
+      features: { [CrepeFeature.AI]: true },
+      featureConfigs: {
+        [CrepeFeature.AI]: {
+          provider: async function* () {
+            yield 'unused'
+          },
+        },
+      },
+    })
+    await crepe.create()
+    try {
+      // Simulate the end of an AI session: the streaming side flips
+      // `diffOwnedByAI` on right before handing off to diff review.
+      crepe.editor.action((ctx) => {
+        const session = ctx.get(aiSessionCtx.key)
+        ctx.set(aiSessionCtx.key, { ...session, diffOwnedByAI: true })
+        ctx.get(commandsCtx).call(startDiffReviewCmd.key, 'goodbye')
+      })
+
+      const view = crepe.editor.ctx.get(editorViewCtx)
+      expect(diffPluginKey.getState(view.state)?.active).toBe(true)
+
+      expect(dispatchKeyDown(view, 'Enter', { metaKey: true })).toBe(true)
+      expect(diffPluginKey.getState(view.state)?.active).toBeFalsy()
+      expect(view.state.doc.textContent).toContain('goodbye')
+    } finally {
+      await crepe.destroy()
+    }
+  })
+
+  test('Mod-Enter does not hijack a manually-started diff review', async () => {
+    const crepe = new Crepe({
+      defaultValue: 'hello',
+      features: { [CrepeFeature.AI]: true },
+      featureConfigs: {
+        [CrepeFeature.AI]: {
+          provider: async function* () {
+            yield 'unused'
+          },
+        },
+      },
+    })
+    await crepe.create()
+    try {
+      // Nothing flips `diffOwnedByAI` here. This stands for host code
+      // that calls `startDiffReviewCmd` without the AI feature.
+      crepe.editor.action((ctx) => {
+        ctx.get(commandsCtx).call(startDiffReviewCmd.key, 'goodbye')
+      })
+
+      const view = crepe.editor.ctx.get(editorViewCtx)
+      expect(diffPluginKey.getState(view.state)?.active).toBe(true)
+
+      // Handler must let the event fall through; the diff stays active.
+      expect(dispatchKeyDown(view, 'Enter', { metaKey: true })).toBe(false)
+      expect(diffPluginKey.getState(view.state)?.active).toBe(true)
+    } finally {
+      await crepe.destroy()
+    }
+  })
+
+  test('Esc aborts an in-flight AI session', async () => {
+    const crepe = new Crepe({
+      features: { [CrepeFeature.AI]: true },
+      featureConfigs: {
+        [CrepeFeature.AI]: {
+          provider: async function* () {
+            // Hang indefinitely so the session stays open until aborted.
+            await new Promise(() => {})
+            yield ''
+          },
+          diffReviewOnEnd: false,
+        },
+      },
+    })
+    await crepe.create()
+    try {
+      crepe.editor.action(callCommand(runAICmd.key, { instruction: 'test' }))
+      await waitForAsync()
+
+      const view = crepe.editor.ctx.get(editorViewCtx)
+      expect(streamingPluginKey.getState(view.state)?.active).toBe(true)
+
+      expect(dispatchKeyDown(view, 'Escape')).toBe(true)
+      await waitForAsync()
+
+      const session = crepe.editor.action((ctx) => ctx.get(aiSessionCtx.key))
+      expect(session.abortController).toBeNull()
+      expect(streamingPluginKey.getState(view.state)?.active).toBeFalsy()
+    } finally {
+      await crepe.destroy()
+    }
+  })
+
+  test('Esc aborts a manual streaming session when no AI session is active', async () => {
+    const crepe = new Crepe({
+      features: { [CrepeFeature.AI]: true },
+    })
+    await crepe.create()
+    try {
+      crepe.editor.action((ctx) => {
+        ctx.get(commandsCtx).call(startStreamingCmd.key, { insertAt: 'cursor' })
+      })
+
+      const view = crepe.editor.ctx.get(editorViewCtx)
+      expect(streamingPluginKey.getState(view.state)?.active).toBe(true)
+      // Sanity: no AI session is in flight.
+      expect(
+        crepe.editor.action((ctx) => ctx.get(aiSessionCtx.key).abortController)
+      ).toBeNull()
+
+      expect(dispatchKeyDown(view, 'Escape')).toBe(true)
+      expect(streamingPluginKey.getState(view.state)?.active).toBeFalsy()
+    } finally {
+      await crepe.destroy()
+    }
+  })
+})
+
+describe('AI diff actions panel visibility', () => {
+  /// Panels from earlier tests may linger in `document.body` until their
+  /// editor view is fully torn down, so always look up the panel
+  /// relative to the current crepe instance's `.milkdown` host.
+  function findPanelFor(crepe: Crepe): HTMLElement | null {
+    const view = crepe.editor.ctx.get(editorViewCtx)
+    const host = view.dom.closest('.milkdown') ?? document.body
+    return host.querySelector<HTMLElement>('.milkdown-ai-diff-actions')
+  }
+
+  test('panel stays hidden for a manually-started diff review', async () => {
+    const crepe = new Crepe({
+      defaultValue: 'hello',
+      features: { [CrepeFeature.AI]: true },
+      featureConfigs: {
+        [CrepeFeature.AI]: {
+          provider: async function* () {
+            yield 'unused'
+          },
+        },
+      },
+    })
+    await crepe.create()
+    try {
+      crepe.editor.action((ctx) => {
+        ctx.get(commandsCtx).call(startDiffReviewCmd.key, 'goodbye')
+      })
+
+      expect(findPanelFor(crepe)?.dataset.show).toBe('false')
+    } finally {
+      await crepe.destroy()
+    }
+  })
+
+  test('panel shows for an AI-owned diff review', async () => {
+    const crepe = new Crepe({
+      defaultValue: 'hello',
+      features: { [CrepeFeature.AI]: true },
+      featureConfigs: {
+        [CrepeFeature.AI]: {
+          provider: async function* () {
+            yield 'unused'
+          },
+        },
+      },
+    })
+    await crepe.create()
+    try {
+      crepe.editor.action((ctx) => {
+        const session = ctx.get(aiSessionCtx.key)
+        ctx.set(aiSessionCtx.key, { ...session, diffOwnedByAI: true })
+        ctx.get(commandsCtx).call(startDiffReviewCmd.key, 'goodbye')
+      })
+
+      expect(findPanelFor(crepe)?.dataset.show).toBe('true')
+    } finally {
+      await crepe.destroy()
+    }
+  })
+
+  test('Retry button clears the diff review and re-runs the stored prompt', async () => {
+    // The provider hangs, so the re-issued AI session stays in streaming
+    // and never returns to diff review during the assertions.
+    const provider = vi.fn(async function* () {
+      await new Promise(() => {})
+      yield ''
+    })
+    const crepe = new Crepe({
+      defaultValue: 'hello world',
+      features: { [CrepeFeature.AI]: true },
+      featureConfigs: { [CrepeFeature.AI]: { provider } },
+    })
+    await crepe.create()
+    try {
+      // Stage the editor as if a previous AI run ended in diff review.
+      // That state holds the retry metadata, the AI ownership flag and
+      // an active diff. Skipping `runAICmd` keeps the assertions off a
+      // full streaming round trip.
+      crepe.editor.action((ctx) => {
+        const session = ctx.get(aiSessionCtx.key)
+        ctx.set(aiSessionCtx.key, {
+          ...session,
+          lastInstruction: 'Improve writing',
+          lastLabel: 'Improving writing',
+          lastFrom: 0,
+          lastTo: 5,
+          diffOwnedByAI: true,
+        })
+        ctx.get(commandsCtx).call(startDiffReviewCmd.key, 'goodbye')
+      })
+
+      const view = crepe.editor.ctx.get(editorViewCtx)
+      expect(diffPluginKey.getState(view.state)?.active).toBe(true)
+
+      const panel = findPanelFor(crepe)
+      const retryBtn = panel?.querySelector<HTMLButtonElement>(
+        '.milkdown-ai-diff-actions-btn-retry'
+      )
+      expect(retryBtn).not.toBeNull()
+      expect(retryBtn?.disabled).toBe(false)
+
+      retryBtn?.click()
+      // The click handler runs synchronously; the provider call happens
+      // on a microtask once streaming has been set up.
+      await waitForAsync()
+
+      // Diff review was cleared and a fresh streaming session is now in
+      // flight (the hanging provider keeps it there for the rest of the
+      // test).
+      expect(diffPluginKey.getState(view.state)?.active).toBeFalsy()
+      expect(streamingPluginKey.getState(view.state)?.active).toBe(true)
+      // Provider received the persisted instruction.
+      expect(provider).toHaveBeenCalled()
+      const [promptContext] = provider.mock.calls[0] as unknown as [
+        AIPromptContext,
+      ]
+      expect(promptContext.instruction).toBe('Improve writing')
+    } finally {
+      await crepe.destroy()
+    }
+  })
+})
+
+describe('AI instruction palette', () => {
+  test('show() mounts a palette input under .milkdown-ai-instruction', async () => {
+    const crepe = new Crepe({
+      defaultValue: 'hello',
+      features: { [CrepeFeature.AI]: true },
+      featureConfigs: {
+        [CrepeFeature.AI]: {
+          provider: async function* () {
+            yield 'unused'
+          },
+        },
+      },
+    })
+    await crepe.create()
+    try {
+      useAIInstructionTooltipAPI(crepe.editor.ctx).show(0, 0)
+      await nextTick()
+
+      // Scope the lookup to this editor's `.milkdown` host so a stale
+      // palette left in `document.body` by an earlier test can't make
+      // the assertion accidentally pass.
+      const view = crepe.editor.ctx.get(editorViewCtx)
+      const host = view.dom.closest('.milkdown') ?? document.body
+      const input = host.querySelector<HTMLInputElement>(
+        '.milkdown-ai-instruction input'
+      )
+      expect(input).not.toBeNull()
+    } finally {
+      await crepe.destroy()
+    }
+  })
+})
+
+describe('public AI feature surface', () => {
+  // A host that renders its own toolbar needs to reach the AI feature the
+  // way Crepe's own button does: check whether a provider is configured,
+  // then open the instruction palette over a range. These two helpers are
+  // that public surface.
+  //
+  // They must resolve their slice by *name*, never by slice object. Each
+  // package entry is bundled independently (see rollup.config.js), so a
+  // host importing `Crepe` from `@milkdown/crepe` and these helpers from
+  // `@milkdown/crepe/feature/ai` ends up with two distinct slice objects
+  // and an object lookup would miss the registered one. Resolution is by
+  // name in `Container.get`, which is why it survives the duplication.
+  // `core/slice.ts` uses the same trick for `useCrepe`.
+  // No `.use()` call registers these slices. They only need the slice
+  // names of the real ones, and nothing reads their values.
+  const duplicateProviderConfig = $ctx(
+    {} as AIProviderConfigValue,
+    'aiProviderConfig'
+  )
+  const duplicateTooltipAPI = $ctx(
+    { show: () => {} },
+    'aiInstructionTooltipAPI'
+  )
+
+  async function createAICrepe(provider: AIProvider) {
+    const crepe = new Crepe({
+      defaultValue: 'hello',
+      features: { [CrepeFeature.AI]: true },
+      featureConfigs: { [CrepeFeature.AI]: { provider } },
+    })
+    await crepe.create()
+    return crepe
+  }
+
+  test('the helpers resolve against a live editor', async () => {
+    const provider: AIProvider = async function* () {
+      yield 'unused'
+    }
+    const crepe = await createAICrepe(provider)
+    try {
+      const { ctx } = crepe.editor
+      expect(useAIProviderConfig(ctx).provider).toBe(provider)
+      expect(typeof useAIInstructionTooltipAPI(ctx).show).toBe('function')
+    } finally {
+      await crepe.destroy()
+    }
+  })
+
+  test('name-based lookup lands on the instance the feature registers', async () => {
+    const provider: AIProvider = async function* () {
+      yield 'unused'
+    }
+    const crepe = await createAICrepe(provider)
+    try {
+      const { ctx } = crepe.editor
+      // A renamed slice would leave the helpers resolving to nothing
+      // while the object lookup kept working. This catches that skew.
+      expect(useAIProviderConfig(ctx)).toBe(ctx.get(aiProviderConfig.key))
+      expect(useAIInstructionTooltipAPI(ctx)).toBe(
+        ctx.get(aiInstructionTooltipAPI.key)
+      )
+    } finally {
+      await crepe.destroy()
+    }
+  })
+
+  test('the helpers resolve by name, not by slice object identity', async () => {
+    // Reproduce what the published package does to a host. It registers
+    // slices that carry the real names as different objects, the copies
+    // a separately bundled entry constructs, and leaves the
+    // module-internal objects unregistered. The name lookup still lands.
+    // A helper reverted to `ctx.get(<slice>.key)` makes this test throw,
+    // which is the reason the helpers exist.
+    const crepe = new Crepe({
+      defaultValue: 'hello',
+      features: { [CrepeFeature.AI]: false },
+    })
+    crepe.editor.use(duplicateProviderConfig).use(duplicateTooltipAPI)
+    await crepe.create()
+    try {
+      const { ctx } = crepe.editor
+      // The container holds none of the objects this module holds,
+      // which is the real situation of a host.
+      expect(() => ctx.get(aiProviderConfig.key)).toThrow(/aiProviderConfig/)
+      expect(() => ctx.get(aiInstructionTooltipAPI.key)).toThrow(
+        /aiInstructionTooltipAPI/
+      )
+      // The helpers find the registered copies regardless.
+      expect(useAIProviderConfig(ctx)).toBe(
+        ctx.get(duplicateProviderConfig.key)
+      )
+      expect(useAIInstructionTooltipAPI(ctx)).toBe(
+        ctx.get(duplicateTooltipAPI.key)
+      )
+    } finally {
+      await crepe.destroy()
+    }
+  })
+
+  test('the helpers throw when the AI feature is disabled', async () => {
+    const crepe = new Crepe({
+      defaultValue: 'hello',
+      features: { [CrepeFeature.AI]: false },
+    })
+    await crepe.create()
+    try {
+      const { ctx } = crepe.editor
+      // The documented guard: ask the feature flags, not the slice.
+      expect(useCrepeFeatures(ctx).get()).not.toContain(CrepeFeature.AI)
+      expect(() => useAIProviderConfig(ctx)).toThrow()
+      expect(() => useAIInstructionTooltipAPI(ctx)).toThrow()
+    } finally {
+      await crepe.destroy()
+    }
+  })
+})

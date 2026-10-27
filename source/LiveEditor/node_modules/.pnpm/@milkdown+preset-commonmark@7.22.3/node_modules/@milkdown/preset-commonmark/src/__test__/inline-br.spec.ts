@@ -1,0 +1,265 @@
+import { editorViewCtx, parserCtx } from '@milkdown/core'
+import { getMarkdown } from '@milkdown/utils'
+import { describe, expect, it } from 'vitest'
+
+import { blockContainerTypes, remarkPreserveEmptyLinePlugin, schema } from '..'
+import { roundTrip, withEditor } from './test-utils'
+
+// footnoteDefinition is a GFM type deliberately shipped in this preset's
+// defaults so cherry-picked footnote compositions round-trip without
+// registering anything (see block-container-types.ts).
+describe('blockContainerTypes defaults', () => {
+  it('ships footnoteDefinition for cherry-picked gfm compositions', async () => {
+    await withEditor('', (editor) =>
+      editor.action((ctx) => {
+        expect(ctx.get(blockContainerTypes.key)).toContain('footnoteDefinition')
+      })
+    )
+  })
+
+  it('ignores a registered phrasing type instead of corrupting documents', async () => {
+    await withEditor('', (editor) =>
+      editor.action((ctx) => {
+        ctx.update(blockContainerTypes.key, (types) => [...types, 'paragraph'])
+        const parser = ctx.get(parserCtx)
+        const doc = parser('foo<br>bar\n')
+        expect(doc?.textContent).toBe('foobar')
+      })
+    )
+  })
+})
+
+// https://github.com/Milkdown/milkdown/issues/2428
+// remarkPreserveEmptyLinePlugin used to splice every html <br> out of the
+// mdast, including user-authored inline breaks. Only a lone <br> that marks
+// a preserved empty line should be removed.
+describe('inline br round-trip (#2428)', () => {
+  it('keeps a break in foo<br>bar after load and getMarkdown', async () => {
+    const output = await roundTrip('foo<br>bar\n')
+    expect(output).toBe('foo<br>bar\n')
+  })
+
+  it('does not delete the <br> in line one <br> line two', async () => {
+    const output = await roundTrip('line one <br> line two\n')
+    expect(output).toBe('line one <br> line two\n')
+  })
+
+  it('still folds a block-level <br> into a preserved empty paragraph', async () => {
+    const output = await roundTrip('para one\n\n<br>\n\npara two\n')
+    expect(output).toBe('para one\n\n<br />\n\npara two\n')
+  })
+
+  it.each([
+    ['<br>', 'foo<br> bar\n'],
+    ['<br/>', 'foo<br/> bar\n'],
+    ['<br />', 'foo<br /> bar\n'],
+    ['<br >', 'foo<br > bar\n'],
+    ['<BR>', 'foo<BR> bar\n'],
+    ['<br  />', 'foo<br  /> bar\n'],
+  ] as const)('keeps sibling text around inline %s', async (_tag, input) => {
+    const output = await roundTrip(input)
+    expect(output).toBe(input)
+  })
+
+  it('keeps consecutive inline breaks in foo<br><br>bar', async () => {
+    const output = await roundTrip('foo<br><br>bar\n')
+    expect(output).toBe('foo<br><br>bar\n')
+  })
+
+  it('keeps a lone <br> inside an ATX heading', async () => {
+    const output = await roundTrip('# <br>\n')
+    expect(output).toBe('# <br>\n')
+  })
+
+  it('keeps a lone <br> inside a level-2 heading', async () => {
+    const output = await roundTrip('## <br>\n')
+    expect(output).toBe('## <br>\n')
+  })
+
+  it('keeps an inline <br> inside a heading with siblings', async () => {
+    const output = await roundTrip('# title<br>more\n')
+    expect(output).toBe('# title<br>more\n')
+  })
+
+  it('keeps a lone <br> inside a link', async () => {
+    const output = await roundTrip('[<br>](https://example.com)\n')
+    expect(output).toBe('[<br>](https://example.com)\n')
+  })
+
+  it('keeps an inline <br> between link text siblings', async () => {
+    const output = await roundTrip('[foo<br>bar](https://example.com)\n')
+    expect(output).toBe('[foo<br>bar](https://example.com)\n')
+  })
+
+  it('keeps a lone <br> inside emphasis', async () => {
+    const output = await roundTrip('*<br>*\n')
+    expect(output).toBe('*<br>*\n')
+  })
+
+  it('keeps a lone <br> inside strong', async () => {
+    const output = await roundTrip('**<br>**\n')
+    expect(output).toBe('**<br>**\n')
+  })
+
+  it('keeps an inline <br> between strong siblings', async () => {
+    const output = await roundTrip('**foo<br>bar**\n')
+    expect(output).toBe('**foo<br>bar**\n')
+  })
+
+  it('still preserves an empty line inside a blockquote', async () => {
+    const output = await roundTrip('> foo\n>\n> <br>\n>\n> bar\n')
+    expect(output).toBe('> foo\n>\n> <br />\n>\n> bar\n')
+  })
+
+  it('still preserves an empty line inside a list item', async () => {
+    const output = await roundTrip('* foo\n\n  <br>\n\n  bar\n')
+    expect(output).toBe('* foo\n\n  <br />\n\n  bar\n')
+  })
+
+  it('keeps an inline <br> inside a list item', async () => {
+    const output = await roundTrip('* foo<br>bar\n')
+    expect(output).toBe('* foo<br>bar\n')
+  })
+
+  it('keeps an inline <br> inside a blockquote', async () => {
+    const output = await roundTrip('> foo<br>bar\n')
+    expect(output).toBe('> foo<br>bar\n')
+  })
+})
+
+// A trailing lone <br> is byte-identical to the empty-line placeholder
+// of the serializer, and a document saved by an older version often ends
+// with one. It folds into an empty paragraph the same as anywhere else,
+// and the trailing trim in `docSchema` then drops it from the output.
+describe('trailing <br> at the end of the document', () => {
+  it('folds a trailing lone <br> into an empty paragraph', async () => {
+    const output = await roundTrip('foo\n\n<br>\n')
+    expect(output).toBe('foo\n')
+  })
+
+  it('loads a legacy trailing placeholder without a literal atom', async () => {
+    await withEditor('foo\n\n<br />\n', (editor) =>
+      editor.action((ctx) => {
+        const doc = ctx.get(editorViewCtx).state.doc
+        expect(doc.childCount).toBe(2)
+        expect(doc.child(1).type.name).toBe('paragraph')
+        expect(doc.child(1).content.size).toBe(0)
+      })
+    )
+  })
+
+  it('folds away a document that is only a <br>', async () => {
+    const output = await roundTrip('<br>\n')
+    expect(output).toBe('')
+  })
+})
+
+// The serializer side: the last empty paragraph is the typing area and is
+// skipped (by index, in `docSchema`), while empty paragraphs before
+// content still serialize as placeholders.
+describe('trailing empty paragraphs', () => {
+  const serializeWithTrailingEmptyParagraphs = (
+    markdown: string,
+    count: number
+  ) =>
+    withEditor(markdown, (editor) =>
+      editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx)
+        const paragraph = view.state.schema.nodes.paragraph
+        if (!paragraph) throw new Error('paragraph type missing')
+        const empties = Array.from({ length: count }, () => paragraph.create())
+        view.dispatch(
+          view.state.tr.insert(view.state.doc.content.size, empties)
+        )
+        return getMarkdown()(ctx)
+      })
+    )
+
+  it('skips only the last trailing empty paragraph', async () => {
+    const output = await serializeWithTrailingEmptyParagraphs('foo\n', 2)
+    expect(output).toBe('foo\n\n<br />\n')
+  })
+
+  it('round-trips its own output without artifacts', async () => {
+    const output = await serializeWithTrailingEmptyParagraphs('foo\n', 2)
+    expect(await roundTrip(output)).toBe('foo\n')
+  })
+
+  it('still emits a placeholder for an empty paragraph before content', async () => {
+    const output = await roundTrip('<br />\n\ntext\n')
+    expect(output).toBe('<br />\n\ntext\n')
+  })
+
+  // The trim works by index, so an empty paragraph that shares its node
+  // instance with the trailing one must still serialize as a placeholder.
+  it('is not confused by aliased empty paragraph instances', async () => {
+    const output = await withEditor('a\n\n<br />\n\nb\n', (editor) =>
+      editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx)
+        const empty = view.state.doc.child(1)
+        view.dispatch(view.state.tr.insert(view.state.doc.content.size, empty))
+        return getMarkdown()(ctx)
+      })
+    )
+    expect(output).toBe('a\n\n<br />\n\nb\n')
+  })
+})
+
+// Ranged serialization wraps the slice in a synthetic document, which
+// goes through the same trailing trim as the editor's own doc. This is
+// deliberate: a trailing blank line cannot survive a save cycle anyway
+// (folded back into an empty paragraph, it becomes the target document's
+// trailing paragraph and is trimmed on the next serialization), Select-All
+// sweeps the typing area in without the user choosing it, and a collapsed
+// range must never conjure content out of the fill paragraph. Known cost,
+// also deliberate: copying a range that stops exactly at a mid-document
+// blank line drops that blank line from the plain-text clipboard. A
+// distinction here would need serialization intent threaded through the
+// serializer API.
+describe('ranged serialization', () => {
+  it('trims or keeps a blank line by where the range ends', async () => {
+    // Loads as [p('a') 0..3, p() 3..5, p('b') 5..8, p() 8..10]. The
+    // trailing placeholder folds into a real typing-area paragraph.
+    await withEditor('a\n\n<br />\n\nb\n\n<br />\n', (editor) =>
+      editor.action((ctx) => {
+        // A mid-selection blank line round-trips.
+        expect(getMarkdown({ from: 0, to: 8 })(ctx)).toBe('a\n\n<br />\n\nb\n')
+        // A selection-trailing blank line is trimmed like the doc tail.
+        expect(getMarkdown({ from: 0, to: 5 })(ctx)).toBe('a\n')
+        // A lone selected blank line serializes to nothing.
+        expect(getMarkdown({ from: 3, to: 5 })(ctx)).toBe('')
+        // A caret inside the typing-area paragraph conjures nothing.
+        expect(getMarkdown({ from: 9, to: 9 })(ctx)).toBe('')
+      })
+    )
+  })
+})
+
+// The placeholder matcher must treat every spelling of <br> alike;
+// otherwise equivalent inputs produce different documents.
+describe('placeholder spelling variants', () => {
+  it.each(['<BR>', '<br  />', '<Br/>'])(
+    'folds a block-level %s like <br>',
+    async (tag) => {
+      const output = await roundTrip(`para one\n\n${tag}\n\npara two\n`)
+      expect(output).toBe('para one\n\n<br />\n\npara two\n')
+    }
+  )
+})
+
+// remarkPreserveEmptyLinePlugin is exported on its own, so it must not
+// depend on remarkHtmlTransformer having wrapped block-level HTML first.
+describe('standalone composition without remarkHtmlTransformer', () => {
+  const roundTripStandalone = (markdown: string) =>
+    roundTrip(markdown, schema, remarkPreserveEmptyLinePlugin)
+
+  it('loads a block-level <br> without crashing', async () => {
+    const output = await roundTripStandalone('para one\n\n<br />\n\npara two\n')
+    expect(output).toBe('para one\n\n<br />\n\npara two\n')
+  })
+
+  it('folds a trailing lone <br> like the composed preset', async () => {
+    const output = await roundTripStandalone('foo\n\n<br>\n')
+    expect(output).toBe('foo\n')
+  })
+})

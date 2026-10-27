@@ -1,0 +1,434 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0DBAB9C66B0BAD70325A3E96 /* FocusShortcut.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3803CE8F3179784D760DF24A /* FocusShortcut.swift */; };
+		412884AF13C6A72D71E41C9B /* ApplicationQuitGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E72820857956D851181D55C /* ApplicationQuitGuard.swift */; };
+		52C2D4DA285604F541E86394 /* RecentDocumentIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE78A2B4BE224BCD8DFE3E33 /* RecentDocumentIndex.swift */; };
+		57E5AC036211A09387304EB8 /* FolderWorkspace.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAF9A4D531AC34A62511A07E /* FolderWorkspace.swift */; };
+		5FC4BAEB88FA21A7123B7BE1 /* CompactWritingWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06D97F2890D571DEF8C4B081 /* CompactWritingWindow.swift */; };
+		6124928E9AC34C7E51449364 /* DocumentStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 586422F278B15E65046229A5 /* DocumentStorage.swift */; };
+		67A1443ED02F879F09AF208D /* LiveMarkdownEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E25F13B31EB307DECD30AE49 /* LiveMarkdownEditor.swift */; };
+		67A21C98A9B8AA316D429E62 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 9D35748829F3F8A0E86DFE2C /* MarkdownUI */; };
+		6976042B310FDD3ED223AE07 /* editor.html in Resources */ = {isa = PBXBuildFile; fileRef = F80D86AC802AD268342F02A8 /* editor.html */; };
+		728A952FCFEF6E2A2FE828A8 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1AE1A61D1CC5644FF6A724B /* EditorView.swift */; };
+		7ED610DFAA21AF552E959342 /* ScaledEditorWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76A375C6145C9F4940B0C115 /* ScaledEditorWindow.swift */; };
+		A59B3F7A9C69046F71D29F94 /* ThirdPartyNotices.txt in Resources */ = {isa = PBXBuildFile; fileRef = 257EE7AB821FA1864A0583F4 /* ThirdPartyNotices.txt */; };
+		B21F46444328CF3929DC02BF /* DocumentTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69E08EF6EC2DA2DCC00B1DB8 /* DocumentTabBar.swift */; };
+		BA15FA9AF02D5711A0FC75CC /* AshTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10FC36BE8ACFB75BE63B0D3 /* AshTextEditor.swift */; };
+		BA6EBAE833A2EB0CE4BCEC27 /* AshFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 686CF668D7DF6464BB97BE5F /* AshFile.swift */; };
+		CBD0B33069A22E88CBA1E80C /* ASHApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 879C615ED08AA047983D12B1 /* ASHApp.swift */; };
+		DABC30ECA5371B161E45F0B7 /* ASHHanddrawn.icns in Resources */ = {isa = PBXBuildFile; fileRef = E40F8C750B478D3D2AAFA4DC /* ASHHanddrawn.icns */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		06D97F2890D571DEF8C4B081 /* CompactWritingWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactWritingWindow.swift; sourceTree = "<group>"; };
+		257EE7AB821FA1864A0583F4 /* ThirdPartyNotices.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = ThirdPartyNotices.txt; sourceTree = "<group>"; };
+		2E72820857956D851181D55C /* ApplicationQuitGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationQuitGuard.swift; sourceTree = "<group>"; };
+		3803CE8F3179784D760DF24A /* FocusShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusShortcut.swift; sourceTree = "<group>"; };
+		52141FB419705F39E4365B95 /* swift-markdown-ui */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "swift-markdown-ui"; path = "Vendor/swift-markdown-ui"; sourceTree = SOURCE_ROOT; };
+		586422F278B15E65046229A5 /* DocumentStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentStorage.swift; sourceTree = "<group>"; };
+		686CF668D7DF6464BB97BE5F /* AshFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AshFile.swift; sourceTree = "<group>"; };
+		69E08EF6EC2DA2DCC00B1DB8 /* DocumentTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentTabBar.swift; sourceTree = "<group>"; };
+		76A375C6145C9F4940B0C115 /* ScaledEditorWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaledEditorWindow.swift; sourceTree = "<group>"; };
+		879C615ED08AA047983D12B1 /* ASHApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ASHApp.swift; sourceTree = "<group>"; };
+		B1AE1A61D1CC5644FF6A724B /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
+		BA93372916C9FBD6A698AC0F /* ASH.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ASH.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DAF9A4D531AC34A62511A07E /* FolderWorkspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderWorkspace.swift; sourceTree = "<group>"; };
+		E25F13B31EB307DECD30AE49 /* LiveMarkdownEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveMarkdownEditor.swift; sourceTree = "<group>"; };
+		E40F8C750B478D3D2AAFA4DC /* ASHHanddrawn.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = ASHHanddrawn.icns; sourceTree = "<group>"; };
+		F10FC36BE8ACFB75BE63B0D3 /* AshTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AshTextEditor.swift; sourceTree = "<group>"; };
+		F80D86AC802AD268342F02A8 /* editor.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = editor.html; sourceTree = "<group>"; };
+		FE78A2B4BE224BCD8DFE3E33 /* RecentDocumentIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentDocumentIndex.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		29F29A5FEAF22B85F41E43A1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				67A21C98A9B8AA316D429E62 /* MarkdownUI in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		1B885B06A16AD0882AD28F47 = {
+			isa = PBXGroup;
+			children = (
+				910A08AA8B29CB9295E0BBD5 /* Packages */,
+				4C819D3A373FA69E7C884E88 /* Resources */,
+				8C119A4851528C3F912365EB /* Sources */,
+				BCAEE63A13F32E5E094C4F70 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		4C819D3A373FA69E7C884E88 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				E40F8C750B478D3D2AAFA4DC /* ASHHanddrawn.icns */,
+				257EE7AB821FA1864A0583F4 /* ThirdPartyNotices.txt */,
+				DB8A7445E236A02D2CCD0B31 /* LiveEditor */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		8C119A4851528C3F912365EB /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				2E72820857956D851181D55C /* ApplicationQuitGuard.swift */,
+				879C615ED08AA047983D12B1 /* ASHApp.swift */,
+				686CF668D7DF6464BB97BE5F /* AshFile.swift */,
+				F10FC36BE8ACFB75BE63B0D3 /* AshTextEditor.swift */,
+				06D97F2890D571DEF8C4B081 /* CompactWritingWindow.swift */,
+				586422F278B15E65046229A5 /* DocumentStorage.swift */,
+				69E08EF6EC2DA2DCC00B1DB8 /* DocumentTabBar.swift */,
+				B1AE1A61D1CC5644FF6A724B /* EditorView.swift */,
+				3803CE8F3179784D760DF24A /* FocusShortcut.swift */,
+				DAF9A4D531AC34A62511A07E /* FolderWorkspace.swift */,
+				E25F13B31EB307DECD30AE49 /* LiveMarkdownEditor.swift */,
+				FE78A2B4BE224BCD8DFE3E33 /* RecentDocumentIndex.swift */,
+				76A375C6145C9F4940B0C115 /* ScaledEditorWindow.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		910A08AA8B29CB9295E0BBD5 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				52141FB419705F39E4365B95 /* swift-markdown-ui */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		BCAEE63A13F32E5E094C4F70 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				BA93372916C9FBD6A698AC0F /* ASH.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		DB8A7445E236A02D2CCD0B31 /* LiveEditor */ = {
+			isa = PBXGroup;
+			children = (
+				F80D86AC802AD268342F02A8 /* editor.html */,
+			);
+			path = LiveEditor;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		B3E5A3B167A80203690E8DB5 /* ASH */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 08155E5E8E0061ECD2BF49AF /* Build configuration list for PBXNativeTarget "ASH" */;
+			buildPhases = (
+				8C9D16CE052D7594D5F00521 /* Sources */,
+				FBB7EE7A2DB865A2F663526D /* Resources */,
+				29F29A5FEAF22B85F41E43A1 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ASH;
+			packageProductDependencies = (
+				9D35748829F3F8A0E86DFE2C /* MarkdownUI */,
+			);
+			productName = ASH;
+			productReference = BA93372916C9FBD6A698AC0F /* ASH.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F663C6ABB756D06D3D6CE978 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					B3E5A3B167A80203690E8DB5 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = BDBEB52D3F358FE216B0CC09 /* Build configuration list for PBXProject "ASH" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 1B885B06A16AD0882AD28F47;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				D151909866C965EF15311CA1 /* XCLocalSwiftPackageReference "Vendor/swift-markdown-ui" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = BCAEE63A13F32E5E094C4F70 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B3E5A3B167A80203690E8DB5 /* ASH */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		FBB7EE7A2DB865A2F663526D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DABC30ECA5371B161E45F0B7 /* ASHHanddrawn.icns in Resources */,
+				A59B3F7A9C69046F71D29F94 /* ThirdPartyNotices.txt in Resources */,
+				6976042B310FDD3ED223AE07 /* editor.html in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		8C9D16CE052D7594D5F00521 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CBD0B33069A22E88CBA1E80C /* ASHApp.swift in Sources */,
+				412884AF13C6A72D71E41C9B /* ApplicationQuitGuard.swift in Sources */,
+				BA6EBAE833A2EB0CE4BCEC27 /* AshFile.swift in Sources */,
+				BA15FA9AF02D5711A0FC75CC /* AshTextEditor.swift in Sources */,
+				5FC4BAEB88FA21A7123B7BE1 /* CompactWritingWindow.swift in Sources */,
+				6124928E9AC34C7E51449364 /* DocumentStorage.swift in Sources */,
+				B21F46444328CF3929DC02BF /* DocumentTabBar.swift in Sources */,
+				728A952FCFEF6E2A2FE828A8 /* EditorView.swift in Sources */,
+				0DBAB9C66B0BAD70325A3E96 /* FocusShortcut.swift in Sources */,
+				57E5AC036211A09387304EB8 /* FolderWorkspace.swift in Sources */,
+				67A1443ED02F879F09AF208D /* LiveMarkdownEditor.swift in Sources */,
+				52C2D4DA285604F541E86394 /* RecentDocumentIndex.swift in Sources */,
+				7ED610DFAA21AF552E959342 /* ScaledEditorWindow.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		7111EA5AF424C7364970F12B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = ASHHanddrawn;
+				CODE_SIGN_ENTITLEMENTS = ASH.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ASH;
+				INFOPLIST_KEY_CFBundleIconFile = ASHHanddrawn;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.ash.editor;
+				PRODUCT_NAME = ASH;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		78D258C345FFCADBD84D517B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = ASHHanddrawn;
+				CODE_SIGN_ENTITLEMENTS = ASH.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ASH;
+				INFOPLIST_KEY_CFBundleIconFile = ASHHanddrawn;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.ash.editor;
+				PRODUCT_NAME = ASH;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		83C2981FF523FCBABF7E20D2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		890C56886F447C211D8B9212 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		08155E5E8E0061ECD2BF49AF /* Build configuration list for PBXNativeTarget "ASH" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				78D258C345FFCADBD84D517B /* Debug */,
+				7111EA5AF424C7364970F12B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BDBEB52D3F358FE216B0CC09 /* Build configuration list for PBXProject "ASH" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				890C56886F447C211D8B9212 /* Debug */,
+				83C2981FF523FCBABF7E20D2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		D151909866C965EF15311CA1 /* XCLocalSwiftPackageReference "Vendor/swift-markdown-ui" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "Vendor/swift-markdown-ui";
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		9D35748829F3F8A0E86DFE2C /* MarkdownUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MarkdownUI;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = F663C6ABB756D06D3D6CE978 /* Project object */;
+}
