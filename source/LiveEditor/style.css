@@ -84,7 +84,9 @@ body { color:var(--ash-ink); font-family:-apple-system,BlinkMacSystemFont,'PingF
 /* Keep list markers centered on the first text line at every editor font size. */
 .milkdown .milkdown-list-item-block li > .label-wrapper,
 .milkdown .milkdown-list-item-block li > .label-wrapper > .label { height:1.5em; line-height:1.5; }
-.milkdown .milkdown-list-item-block li > .children > p:first-child { margin-top:0; padding-top:0; }
+.milkdown .milkdown-list-item-block li > .label-wrapper:has(> .label.ordered) { width:max-content; flex:0 0 auto; }
+.milkdown .milkdown-list-item-block li > .label-wrapper > .label.ordered { width:max-content; white-space:nowrap; }
+.milkdown .milkdown-list-item-block li > .children > .content-dom > p:first-child { margin-top:0; padding-top:0; }
 .milkdown mark[data-ash-highlight] { color:var(--ash-ink); background:var(--ash-hl-yellow); border-radius:3px; padding:0.06em 0; box-decoration-break:clone; -webkit-box-decoration-break:clone; }
 .milkdown mark[data-ash-highlight="red"] { background:var(--ash-hl-red); }
 .milkdown mark[data-ash-highlight="orange"] { background:var(--ash-hl-orange); }
